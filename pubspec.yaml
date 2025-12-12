@@ -1,4 +1,4 @@
-name: KubeEase
+name: kube_ease
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -37,6 +37,9 @@ dependencies:
   k8s: ^1.27.0+dev.2
   kubeconfig: ^1.0.3
   http: ^1.6.0
+  xterm: ^4.0.0
+  dartssh2: ^2.13.0
+  pty: ^0.1.1
 
 dev_dependencies:
   flutter_test:

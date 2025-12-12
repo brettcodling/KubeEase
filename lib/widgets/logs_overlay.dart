@@ -1,48 +1,50 @@
 import 'package:flutter/material.dart';
-import '../services/logs_manager.dart';
+import '../services/session_manager.dart';
 import '../main.dart';
 import 'logs_viewer.dart';
+import 'terminal_viewer.dart';
 
-/// Widget that manages the logs overlay system (minimized cards + full-screen dialog)
-class LogsOverlay extends StatefulWidget {
+/// Widget that manages the session overlay system (minimized cards + full-screen dialog)
+/// Handles both logs and terminal sessions
+class SessionOverlay extends StatefulWidget {
   final Widget child;
 
-  const LogsOverlay({super.key, required this.child});
+  const SessionOverlay({super.key, required this.child});
 
   @override
-  State<LogsOverlay> createState() => _LogsOverlayState();
+  State<SessionOverlay> createState() => _SessionOverlayState();
 }
 
-class _LogsOverlayState extends State<LogsOverlay> {
-  final LogsManager _logsManager = LogsManager();
+class _SessionOverlayState extends State<SessionOverlay> {
+  final SessionManager _sessionManager = SessionManager();
   Offset _buttonPosition = const Offset(16, 16); // Position from bottom-right
 
   @override
   void initState() {
     super.initState();
-    _logsManager.addListener(_onLogsChanged);
+    _sessionManager.addListener(_onSessionsChanged);
   }
 
   @override
   void dispose() {
-    _logsManager.removeListener(_onLogsChanged);
+    _sessionManager.removeListener(_onSessionsChanged);
     super.dispose();
   }
 
-  void _onLogsChanged() {
+  void _onSessionsChanged() {
     setState(() {});
 
     // Show full-screen dialog when there's an active session
-    if (_logsManager.activeSession != null) {
+    if (_sessionManager.activeSession != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _logsManager.activeSession != null) {
-          _showLogsDialog(_logsManager.activeSession!);
+        if (mounted && _sessionManager.activeSession != null) {
+          _showSessionDialog(_sessionManager.activeSession!);
         }
       });
     }
   }
 
-  void _showLogsDialog(LogsSession session) {
+  void _showSessionDialog(Session session) {
     // Use the global navigator key to get the context
     final navigatorContext = KubernetesManagerApp.navigatorKey.currentContext;
     if (navigatorContext == null) return;
@@ -50,11 +52,11 @@ class _LogsOverlayState extends State<LogsOverlay> {
     showDialog(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (context) => _LogsDialog(session: session),
+      builder: (context) => _SessionDialog(session: session),
     ).then((_) {
       // Dialog was closed, clear active session if it's still the same one
-      if (_logsManager.activeSession?.id == session.id) {
-        _logsManager.closeActive();
+      if (_sessionManager.activeSession?.id == session.id) {
+        _sessionManager.closeActive();
       }
     });
   }
@@ -66,8 +68,8 @@ class _LogsOverlayState extends State<LogsOverlay> {
         return Stack(
           children: [
             widget.child,
-            // Show floating icon when there are minimized logs AND no active session
-            if (_logsManager.minimizedSessions.isNotEmpty && _logsManager.activeSession == null)
+            // Show floating icon when there are minimized sessions AND no active session
+            if (_sessionManager.minimizedSessions.isNotEmpty && _sessionManager.activeSession == null)
               Positioned(
                 bottom: _buttonPosition.dy,
                 right: _buttonPosition.dx,
@@ -81,7 +83,7 @@ class _LogsOverlayState extends State<LogsOverlay> {
                       );
                     });
                   },
-                  child: _MinimizedLogsButton(sessions: _logsManager.minimizedSessions),
+                  child: _MinimizedSessionsButton(sessions: _sessionManager.minimizedSessions),
                 ),
               ),
           ],
@@ -91,11 +93,11 @@ class _LogsOverlayState extends State<LogsOverlay> {
   }
 }
 
-/// Full-screen dialog for viewing logs
-class _LogsDialog extends StatelessWidget {
-  final LogsSession session;
+/// Full-screen dialog for viewing a session (logs or terminal)
+class _SessionDialog extends StatelessWidget {
+  final Session session;
 
-  const _LogsDialog({required this.session});
+  const _SessionDialog({required this.session});
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +110,7 @@ class _LogsDialog extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.minimize),
               onPressed: () {
-                LogsManager().minimizeActive();
+                SessionManager().minimizeActive();
                 Navigator.of(context).pop();
               },
               tooltip: 'Minimize',
@@ -116,39 +118,50 @@ class _LogsDialog extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () {
-                LogsManager().closeActive();
+                SessionManager().closeActive();
                 Navigator.of(context).pop();
               },
               tooltip: 'Close',
             ),
           ],
         ),
-        body: LogsViewer(
-          kubernetesClient: session.kubernetesClient,
-          namespace: session.namespace,
-          jobName: session.jobName,
-          containerName: session.containerName,
-          isPodLog: session.isPodLog,
-        ),
+        body: _buildSessionBody(session),
       ),
     );
   }
+
+  Widget _buildSessionBody(Session session) {
+    switch (session.type) {
+      case SessionType.logs:
+        return LogsViewer(
+          kubernetesClient: session.kubernetesClient,
+          namespace: session.namespace,
+          jobName: session.podName,
+          containerName: session.containerName,
+          isPodLog: session.isPodLog,
+        );
+      case SessionType.terminal:
+        return TerminalViewer(
+          session: session,
+        );
+    }
+  }
 }
 
-/// Floating button that shows a list of minimized logs
-class _MinimizedLogsButton extends StatefulWidget {
-  final List<LogsSession> sessions;
+/// Floating button that shows a list of minimized sessions
+class _MinimizedSessionsButton extends StatefulWidget {
+  final List<Session> sessions;
 
-  const _MinimizedLogsButton({required this.sessions});
+  const _MinimizedSessionsButton({required this.sessions});
 
   @override
-  State<_MinimizedLogsButton> createState() => _MinimizedLogsButtonState();
+  State<_MinimizedSessionsButton> createState() => _MinimizedSessionsButtonState();
 }
 
-class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
+class _MinimizedSessionsButtonState extends State<_MinimizedSessionsButton> {
   bool _isMenuOpen = false;
 
-  void _showLogsList(BuildContext context) async {
+  void _showSessionsList(BuildContext context) async {
     // Use the global navigator state
     final navigatorState = KubernetesManagerApp.navigatorKey.currentState;
     if (navigatorState == null) return;
@@ -203,7 +216,7 @@ class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    Icons.article_outlined,
+                    session.icon,
                     size: 20,
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
@@ -224,7 +237,7 @@ class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
                   ),
                   onPressed: () {
                     KubernetesManagerApp.navigatorKey.currentState?.pop();
-                    LogsManager().closeSession(session.id);
+                    SessionManager().closeSession(session.id);
                   },
                   tooltip: 'Close',
                   padding: EdgeInsets.zero,
@@ -232,7 +245,7 @@ class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
                 ),
                 onTap: () {
                   KubernetesManagerApp.navigatorKey.currentState?.pop();
-                  LogsManager().restoreSession(session.id);
+                  SessionManager().restoreSession(session.id);
                 },
               ),
             ),
@@ -253,11 +266,24 @@ class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
       return const SizedBox.shrink();
     }
 
+    // Determine icon based on session types
+    final hasTerminal = widget.sessions.any((s) => s.type == SessionType.terminal);
+    final hasLogs = widget.sessions.any((s) => s.type == SessionType.logs);
+    final IconData displayIcon;
+
+    if (hasTerminal && hasLogs) {
+      displayIcon = Icons.layers_outlined;
+    } else if (hasTerminal) {
+      displayIcon = Icons.terminal;
+    } else {
+      displayIcon = Icons.article_outlined;
+    }
+
     return Material(
       elevation: 6,
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
-        onTap: () => _showLogsList(context),
+        onTap: () => _showSessionsList(context),
         borderRadius: BorderRadius.circular(28),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -269,7 +295,7 @@ class _MinimizedLogsButtonState extends State<_MinimizedLogsButton> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.article_outlined,
+                displayIcon,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
               const SizedBox(width: 8),

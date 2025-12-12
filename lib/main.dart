@@ -23,7 +23,7 @@ class KubernetesManagerApp extends StatelessWidget {
       ),
       home: const ClusterViewScreen(),
       builder: (context, child) {
-        return LogsOverlay(child: child ?? const SizedBox.shrink());
+        return SessionOverlay(child: child ?? const SizedBox.shrink());
       },
       debugShowCheckedModeBanner: false,
     );

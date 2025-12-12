@@ -1,4 +1,4 @@
-# KubeEase
+# kube_ease
 
 A new Flutter project.
 

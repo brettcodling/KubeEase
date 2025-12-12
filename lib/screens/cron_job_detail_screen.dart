@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/cron_jobs/cron_job_service.dart';
-import '../services/logs_manager.dart';
+import '../services/session_manager.dart';
 
 /// Screen that displays detailed information about a Kubernetes CronJob
 class CronJobDetailScreen extends StatefulWidget {
@@ -641,14 +641,14 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
     );
   }
 
-  /// Opens logs viewer using LogsManager
+  /// Opens logs viewer using SessionManager
   void _openLogsTab(String jobName) {
-    LogsManager().openLogs(
+    SessionManager().openLogs(
       id: 'logs-$jobName-${DateTime.now().millisecondsSinceEpoch}',
       title: 'Logs: $jobName',
       kubernetesClient: widget.kubernetesClient,
       namespace: widget.namespace,
-      jobName: jobName,
+      podName: jobName,
     );
   }
 

@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:k8s/k8s.dart';
 import '../services/pods/pod_service.dart';
-import '../services/logs_manager.dart';
+import '../services/session_manager.dart';
 import '../models/pod_event.dart';
 
 /// Screen that displays detailed information about a Kubernetes Pod
@@ -930,14 +929,28 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
     final containerName = widget.container.name ?? 'unknown';
     final id = 'logs-${widget.namespace}-${widget.podName}-$containerName-${DateTime.now().millisecondsSinceEpoch}';
 
-    LogsManager().openLogs(
+    SessionManager().openLogs(
       id: id,
       title: 'Logs: ${widget.podName}/$containerName',
       kubernetesClient: widget.kubernetesClient,
       namespace: widget.namespace,
-      jobName: widget.podName,
+      podName: widget.podName,
       containerName: containerName,
       isPodLog: true,
+    );
+  }
+
+  void _openContainerTerminal() {
+    final containerName = widget.container.name ?? 'unknown';
+    final id = 'terminal-${widget.namespace}-${widget.podName}-$containerName-${DateTime.now().millisecondsSinceEpoch}';
+
+    SessionManager().openTerminal(
+      id: id,
+      title: 'Terminal: ${widget.podName}/$containerName',
+      kubernetesClient: widget.kubernetesClient,
+      namespace: widget.namespace,
+      podName: widget.podName,
+      containerName: containerName,
     );
   }
 
@@ -977,6 +990,11 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
                           fontWeight: FontWeight.bold,
                         ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.terminal),
+                  onPressed: _openContainerTerminal,
+                  tooltip: 'Open Terminal',
                 ),
                 IconButton(
                   icon: const Icon(Icons.article_outlined),
