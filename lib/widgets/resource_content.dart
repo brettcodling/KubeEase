@@ -488,24 +488,36 @@ class _ResourceContentState extends State<ResourceContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header with resource type title and sort controls
-          Row(
-            children: [
-              Icon(
-                _getIconForResourceType(widget.resourceType),
-                size: 32,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _getTitleForResourceType(widget.resourceType),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Hide sort controls when width is less than 400px
+              final showSortControls = constraints.maxWidth >= 400;
+
+              return Row(
+                children: [
+                  Icon(
+                    _getIconForResourceType(widget.resourceType),
+                    size: 32,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _getTitleForResourceType(widget.resourceType),
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-              ),
-              const Spacer(),
-              // Sort controls for all resource types
-              _buildSortControls(),
-            ],
+                  ),
+                  if (showSortControls) ...[
+                    const SizedBox(width: 8),
+                    // Sort controls for all resource types
+                    _buildSortControls(),
+                  ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 

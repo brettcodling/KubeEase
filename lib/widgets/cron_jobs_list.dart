@@ -116,6 +116,7 @@ class CronJobsList extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 // Age badge
@@ -163,12 +164,14 @@ class CronJobsList extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodyMedium,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

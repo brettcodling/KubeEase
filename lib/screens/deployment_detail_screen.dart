@@ -164,11 +164,14 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
               children: [
                 Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Basic Information',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Basic Information',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -201,7 +204,7 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(
+            child: SelectableText(
               value,
               style: TextStyle(
                 fontSize: 14,
@@ -247,11 +250,14 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
               children: [
                 Icon(Icons.scale_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Scale Deployment',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Scale Deployment',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -438,6 +444,7 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
                             color: Colors.grey[400],
                             fontSize: 13,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Expanded(
@@ -500,11 +507,14 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
                           color: status == 'True' ? Colors.green : Colors.red,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          type,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        Flexible(
+                          child: Text(
+                            type,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),

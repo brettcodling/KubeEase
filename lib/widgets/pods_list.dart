@@ -114,6 +114,7 @@ class PodsList extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 // Age
@@ -137,24 +138,30 @@ class PodsList extends StatelessWidget {
             Row(
               children: [
                 // Namespace
-                _buildDetailChip(
-                  context,
-                  icon: Icons.folder,
-                  label: pod.namespace,
+                Flexible(
+                  child: _buildDetailChip(
+                    context,
+                    icon: Icons.folder,
+                    label: pod.namespace,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 // Status
-                _buildDetailChip(
-                  context,
-                  icon: Icons.info_outline,
-                  label: pod.status,
+                Flexible(
+                  child: _buildDetailChip(
+                    context,
+                    icon: Icons.info_outline,
+                    label: pod.status,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 // Restart count
-                _buildDetailChip(
-                  context,
-                  icon: Icons.refresh,
-                  label: '${pod.restartCount} restarts',
+                Flexible(
+                  child: _buildDetailChip(
+                    context,
+                    icon: Icons.refresh,
+                    label: '${pod.restartCount} restarts',
+                  ),
                 ),
               ],
             ),
@@ -190,11 +197,14 @@ class PodsList extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
+        Flexible(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );

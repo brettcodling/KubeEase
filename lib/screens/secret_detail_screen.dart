@@ -306,11 +306,14 @@ class _SecretDetailScreenState extends State<SecretDetailScreen> {
               children: [
                 Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Basic Information',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Basic Information',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -340,7 +343,7 @@ class _SecretDetailScreenState extends State<SecretDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(
+            child: SelectableText(
               value,
               style: const TextStyle(fontSize: 14),
             ),
@@ -380,11 +383,14 @@ class _SecretDetailScreenState extends State<SecretDetailScreen> {
               children: [
                 Icon(Icons.vpn_key, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Data Keys',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Data Keys',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -453,6 +459,7 @@ class _SecretDetailScreenState extends State<SecretDetailScreen> {
                 child: Text(
                   key,
                   style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (!isVisible)

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import 'package:xterm/xterm.dart';
 import 'package:pty/pty.dart';
+import '../main.dart';
 
 /// Type of session
 enum SessionType {
@@ -170,11 +171,41 @@ class SessionManager extends ChangeNotifier {
   }
 
   /// Restores a minimized session
-  void restoreSession(String id) {
+  /// Checks if the pod still exists before restoring
+  Future<void> restoreSession(String id) async {
     final session = _sessions.firstWhere((s) => s.id == id);
-    session.isMinimized = false;
-    _activeSession = session;
-    notifyListeners();
+
+    // Check if pod still exists
+    try {
+      final coreV1Api = session.kubernetesClient.client.getCoreV1Api();
+      await coreV1Api.readNamespacedPod(
+        name: session.podName,
+        namespace: session.namespace,
+      );
+
+      // Pod exists, restore the session
+      session.isMinimized = false;
+      _activeSession = session;
+      notifyListeners();
+    } catch (e) {
+      // Pod doesn't exist, show error toast and schedule closure
+      debugPrint('Pod ${session.podName} no longer exists: $e');
+
+      // Show error toast using ScaffoldMessenger
+      final scaffoldMessenger = KubernetesManagerApp.navigatorKey.currentState != null
+          ? ScaffoldMessenger.of(KubernetesManagerApp.navigatorKey.currentContext!)
+          : null;
+
+      scaffoldMessenger?.showSnackBar(
+        SnackBar(
+          content: Text('Pod "${session.podName}" no longer exists. Closing session'),
+          backgroundColor: Theme.of(KubernetesManagerApp.navigatorKey.currentContext!).colorScheme.error,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      closeSession(id);
+    }
   }
 
   /// Closes a session completely

@@ -46,7 +46,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
       };
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
         // Resize the PTY when terminal is resized
-        _pty?.resize(height, width);
+        _pty?.resize(width, height);
       };
 
       // NOTE: Don't recreate the PTY output listener - it's already listening
@@ -63,7 +63,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
       };
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
         // Resize the PTY when terminal is resized
-        _pty?.resize(height, width);
+        _pty?.resize(width, height);
       };
 
       // Store in session for reuse
@@ -123,7 +123,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
           '-c',
           containerName,
           '--',
-          '/bin/sh',
+          '/bin/bash',
         ],
         environment: {
           'TERM': 'xterm-256color',
@@ -153,7 +153,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
       );
 
       // Set initial terminal size
-      _pty!.resize(_terminal.viewHeight, _terminal.viewWidth);
+      _pty!.resize(_terminal.viewWidth, _terminal.viewHeight);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -189,11 +189,14 @@ class _TerminalViewerState extends State<TerminalViewer> {
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Terminal: ${widget.session.podName}${_resolvedContainerName != null ? '/$_resolvedContainerName' : ''}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+                Expanded(
+                  child: Text(
+                    'Terminal: ${widget.session.podName}${_resolvedContainerName != null ? '/$_resolvedContainerName' : ''}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -239,6 +242,10 @@ class _TerminalViewerState extends State<TerminalViewer> {
                         autofocus: true,
                         backgroundOpacity: 1.0,
                         padding: const EdgeInsets.all(8),
+                        textStyle: const TerminalStyle(
+                          fontFamily: 'Courier New',
+                          fontSize: 14,
+                        ),
                       ),
           ),
         ],

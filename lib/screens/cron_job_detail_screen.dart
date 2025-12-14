@@ -466,11 +466,14 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
               children: [
                 Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Basic Information',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Basic Information',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -563,6 +566,7 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
             child: Text(
               label,
               style: TextStyle(color: Colors.grey[400], fontSize: 13),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
@@ -573,6 +577,7 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
                 color: valueColor,
                 fontWeight: valueColor != null ? FontWeight.w500 : null,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -663,11 +668,14 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
               children: [
                 Icon(Icons.history, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Job History',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Job History',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -786,6 +794,7 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
                     fontWeight: FontWeight.w500,
                     fontSize: 13,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(

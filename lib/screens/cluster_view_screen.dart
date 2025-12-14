@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/kubernetes_service.dart';
+import '../services/port_forward_manager.dart';
 import '../widgets/context_drawer.dart';
 import '../widgets/namespace_drawer.dart';
 import '../widgets/resource_menu.dart';
@@ -246,6 +247,97 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // Port forward notification icon
+          ListenableBuilder(
+            listenable: PortForwardManager(),
+            builder: (context, _) {
+              final sessions = PortForwardManager().sessions;
+              if (sessions.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                children: [
+                  PopupMenuButton<String>(
+                    icon: Badge(
+                      label: Text('${sessions.length}'),
+                      child: const Icon(Icons.forward),
+                    ),
+                    tooltip: 'Port Forwards',
+                    itemBuilder: (context) {
+                      return [
+                        PopupMenuItem<String>(
+                          enabled: false,
+                          child: Text(
+                            'Active Port Forwards',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        ...sessions.map((session) {
+                          return PopupMenuItem<String>(
+                            value: session.id,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        session.displayName,
+                                        style: const TextStyle(fontSize: 13),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Running for ${_formatDuration(DateTime.now().difference(session.startTime))}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.stop_circle_outlined,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const PopupMenuDivider(),
+                        PopupMenuItem<String>(
+                          value: 'stop_all',
+                          child: Row(
+                            children: [
+                              Icon(Icons.clear_all, size: 18, color: Theme.of(context).colorScheme.error),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Stop All',
+                                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ];
+                    },
+                    onSelected: (value) {
+                      if (value == 'stop_all') {
+                        PortForwardManager().stopAll();
+                      } else {
+                        PortForwardManager().stopPortForward(value);
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              );
+            },
+          ),
         ],
       ),
       // Right drawer for namespace selection
@@ -309,6 +401,17 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
                   ],
                 ),
     );
+  }
+
+  /// Formats a duration into a human-readable string
+  String _formatDuration(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes.remainder(60)}m';
+    } else if (duration.inMinutes > 0) {
+      return '${duration.inMinutes}m ${duration.inSeconds.remainder(60)}s';
+    } else {
+      return '${duration.inSeconds}s';
+    }
   }
 
   /// Shows a detailed authentication error dialog with platform-specific instructions

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:k8s/k8s.dart';
 import '../services/pods/pod_service.dart';
 import '../services/session_manager.dart';
+import '../services/port_forward_manager.dart';
 import '../models/pod_event.dart';
 
 /// Screen that displays detailed information about a Kubernetes Pod
@@ -381,11 +382,14 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
               children: [
                 Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Basic Information',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Basic Information',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -416,7 +420,7 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(
+            child: SelectableText(
               value,
               style: TextStyle(
                 fontSize: 14,
@@ -521,11 +525,14 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
               children: [
                 Icon(Icons.view_in_ar_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Containers',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Containers',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -629,11 +636,14 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
           leading: Icon(Icons.checklist_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
           title: Row(
             children: [
-              Text(
-                'Conditions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+              Flexible(
+                child: Text(
+                  'Conditions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               Container(
@@ -738,11 +748,14 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
               children: [
                 Icon(Icons.event_note, size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Events',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Flexible(
+                  child: Text(
+                    'Events',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const Spacer(),
                 Text(
@@ -811,11 +824,14 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
             children: [
               Row(
                 children: [
-                  Text(
-                    event.reason,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  Flexible(
+                    child: Text(
+                      event.reason,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (event.count > 1) ...[
@@ -958,71 +974,73 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
   Widget build(BuildContext context) {
     final ports = widget.container.ports ?? [];
 
-    return Container(
+    return SizedBox(
       width: 800,
-      height: double.infinity,
-      color: Theme.of(context).colorScheme.surface,
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.inversePrimary,
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.widgets_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.container.name ?? 'Container',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+      child: Container(
+        color: Theme.of(context).colorScheme.surface,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.inversePrimary,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    width: 1,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.terminal),
-                  onPressed: _openContainerTerminal,
-                  tooltip: 'Open Terminal',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.article_outlined),
-                  onPressed: _openContainerLogs,
-                  tooltip: 'View Logs',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              child: Row(
                 children: [
-                  _buildPortsSection(ports),
-                  const SizedBox(height: 24),
-                  _buildEnvironmentVariablesSection(),
+                  Icon(
+                    Icons.widgets_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.container.name ?? 'Container',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.terminal),
+                    onPressed: _openContainerTerminal,
+                    tooltip: 'Open Terminal',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.article_outlined),
+                    onPressed: _openContainerLogs,
+                    tooltip: 'View Logs',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPortsSection(ports),
+                    const SizedBox(height: 24),
+                    _buildEnvironmentVariablesSection(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1035,11 +1053,14 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
           children: [
             Icon(Icons.settings_ethernet, size: 20, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 8),
-            Text(
-              'Ports',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            Flexible(
+              child: Text(
+                'Ports',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(width: 8),
             Container(
@@ -1076,59 +1097,189 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
     final protocol = port.protocol ?? 'TCP';
     final name = port.name;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lan_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (name != null)
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                Text(
-                  'Port $containerPort',
-                  style: TextStyle(
-                    color: name != null ? Colors.grey[400] : null,
-                    fontSize: name != null ? 13 : 14,
-                    fontWeight: name != null ? FontWeight.normal : FontWeight.w500,
-                  ),
-                ),
-              ],
+    return ListenableBuilder(
+      listenable: PortForwardManager(),
+      builder: (context, _) {
+        final isForwarded = PortForwardManager().isPortForwarded(
+          widget.namespace,
+          widget.podName,
+          containerPort,
+        );
+        final session = PortForwardManager().getSessionForPort(
+          widget.namespace,
+          widget.podName,
+          containerPort,
+        );
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isForwarded
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                  : Colors.grey.withValues(alpha: 0.2),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              protocol,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: Row(
+            children: [
+              Icon(
+                isForwarded ? Icons.forward : Icons.lan_outlined,
+                size: 18,
+                color: isForwarded
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.primary,
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (name != null)
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    Text(
+                      isForwarded && session != null
+                          ? 'Port $containerPort → localhost:${session.localPort}'
+                          : 'Port $containerPort',
+                      style: TextStyle(
+                        color: name != null ? Colors.grey[400] : null,
+                        fontSize: name != null ? 13 : 14,
+                        fontWeight: name != null ? FontWeight.normal : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  protocol,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(isForwarded ? Icons.stop_circle_outlined : Icons.forward),
+                iconSize: 20,
+                color: isForwarded ? Theme.of(context).colorScheme.error : null,
+                tooltip: isForwarded ? 'Stop Port Forward' : 'Port Forward',
+                onPressed: () {
+                  if (isForwarded && session != null) {
+                    PortForwardManager().stopPortForward(session.id);
+                  } else {
+                    _showPortForwardDialog(containerPort);
+                  }
+                },
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPortForwardDialog(String containerPort) {
+    final localPortController = TextEditingController(text: containerPort);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Port Forward'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Forward port $containerPort to local port:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: localPortController,
+              decoration: const InputDecoration(
+                labelText: 'Local Port',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
             ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final localPort = localPortController.text;
+              Navigator.of(context).pop();
+              _startPortForward(containerPort, localPort);
+            },
+            icon: const Icon(Icons.forward),
+            label: const Text('Forward'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _startPortForward(String containerPort, String localPort) async {
+    // Check if local port is already in use
+    if (PortForwardManager().isLocalPortInUse(localPort)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Local port $localPort is already in use by another port forward'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await PortForwardManager().startPortForward(
+        namespace: widget.namespace,
+        podName: widget.podName,
+        containerPort: containerPort,
+        localPort: localPort,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Port forward started: localhost:$localPort → ${widget.podName}:$containerPort'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start port forward: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildEnvironmentVariablesSection() {
@@ -1139,11 +1290,14 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
           children: [
             Icon(Icons.settings_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 8),
-            Text(
-              'Environment Variables',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            Flexible(
+              child: Text(
+                'Environment Variables',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(width: 8),
             Container(
@@ -1259,23 +1413,27 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (source != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isSecret
-                        ? Colors.orange.withValues(alpha: 0.2)
-                        : Colors.blue.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    source,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isSecret ? Colors.orange : Colors.blue,
-                      fontWeight: FontWeight.bold,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isSecret
+                          ? Colors.orange.withValues(alpha: 0.2)
+                          : Colors.blue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      source,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSecret ? Colors.orange : Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
