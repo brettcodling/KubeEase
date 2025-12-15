@@ -54,6 +54,9 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  // Set window icon using icon name for system integration
+  gtk_window_set_icon_name(window, "kube-ease");
+
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
@@ -104,6 +107,30 @@ static void my_application_startup(GApplication* application) {
   // MyApplication* self = MY_APPLICATION(object);
 
   // Perform any actions required at application startup.
+
+  // Set default window icon name for the application (best for dock/taskbar)
+  gtk_window_set_default_icon_name("kube-ease");
+
+  // Also set from file as fallback
+  GError* error = nullptr;
+  GdkPixbuf* default_icon = nullptr;
+
+  // Try system icon location
+  default_icon = gdk_pixbuf_new_from_file("/usr/share/icons/kube-ease.png", &error);
+
+  // If that fails, try pixmaps location
+  if (!default_icon) {
+    g_clear_error(&error);
+    default_icon = gdk_pixbuf_new_from_file("/usr/share/pixmaps/kube-ease.png", &error);
+  }
+
+  if (default_icon) {
+    GList* icon_list = nullptr;
+    icon_list = g_list_append(icon_list, default_icon);
+    gtk_window_set_default_icon_list(icon_list);
+    g_list_free(icon_list);
+    g_object_unref(default_icon);
+  }
 
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
 }

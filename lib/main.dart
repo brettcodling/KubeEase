@@ -14,9 +14,11 @@ void main() async {
   WindowOptions windowOptions = const WindowOptions(
     minimumSize: Size(800, 600),
     center: true,
+    title: 'KubeEase',
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.setTitle('KubeEase');
     await windowManager.show();
     await windowManager.focus();
   });
@@ -45,7 +47,7 @@ class _KubernetesManagerAppState extends State<KubernetesManagerApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: KubernetesManagerApp.navigatorKey,
-      title: '',
+      title: 'KubeEase',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark),
       ),
