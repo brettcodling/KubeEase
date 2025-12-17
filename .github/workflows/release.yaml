@@ -69,7 +69,7 @@ jobs:
       
       - name: Create control file
         run: |
-          cat > kubeease-deb/DEBIAN/control << EOF
+          cat > kubeease-deb/DEBIAN/control << 'EOF'
           Package: kubeease
           Version: ${{ steps.get_version.outputs.VERSION }}
           Section: utils
@@ -86,7 +86,7 @@ jobs:
       
       - name: Create postinst script
         run: |
-          cat > kubeease-deb/DEBIAN/postinst << EOF
+          cat > kubeease-deb/DEBIAN/postinst << 'EOF'
           #!/bin/bash
           set -e
           ln -sf /opt/kube-ease/kube_ease /usr/local/bin/kube-ease
@@ -103,10 +103,11 @@ jobs:
             echo "Please install kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/"
           fi
           EOF
+          chmod +x kubeease-deb/DEBIAN/postinst
 
       - name: Create postrm script
         run: |
-          cat > kubeease-deb/DEBIAN/postrm << EOF
+          cat > kubeease-deb/DEBIAN/postrm << 'EOF'
           #!/bin/bash
           set -e
           rm -f /usr/local/bin/kube-ease
@@ -117,6 +118,7 @@ jobs:
             update-desktop-database /usr/share/applications || true
           fi
           EOF
+          chmod +x kubeease-deb/DEBIAN/postrm
       
       - name: Build .deb package
         run: |
