@@ -1,26 +1,37 @@
 # KubeEase
 
-A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase provides an intuitive desktop interface for managing your Kubernetes resources with features like interactive terminals, log streaming, and port forwarding.
+A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase provides an intuitive desktop interface for managing your Kubernetes resources with features like interactive terminals, file transfer, log streaming, and port forwarding.
 
 ## Features
 
 ### 🚀 Core Functionality
-- **Multi-Context Support** - Switch between different Kubernetes contexts seamlessly
-- **Namespace Filtering** - Select and filter resources across multiple namespaces
+- **Multi-Context Support** - Switch between different Kubernetes contexts seamlessly with automatic external change detection
+- **Namespace Filtering** - Select and filter resources across multiple namespaces with search capability
+- **Namespace Memory** - Automatically remembers your namespace selections per context
 - **Resource Management** - View and manage Pods, Deployments, Secrets, and CronJobs
 - **Real-time Updates** - Live streaming of resource states and events
+- **External Sync** - Automatically detects and syncs with kubectl context changes
 
 ### 🖥️ Interactive Tools
 - **Container Terminals** - Open interactive bash/sh sessions directly to pod containers
+- **File Transfer** - Upload and download files to/from containers with visual file browser
 - **Log Streaming** - Real-time log viewing with follow mode
 - **Port Forwarding** - Forward container ports to localhost with visual management
 - **Session Management** - Minimize and restore terminal/log sessions without losing state
+
+### 📁 File Management
+- **Smart Upload** - Upload files to the current directory in your terminal session
+- **Visual Download** - Browse and select multiple files/directories with a visual file picker
+- **Overwrite Protection** - Warnings when downloading files that already exist locally
+- **Bulk Operations** - Download multiple files at once
+- **Directory Tracking** - Automatically tracks your current directory in terminal sessions
 
 ### 💡 User Experience
 - **Dark Theme** - Modern dark UI optimized for extended use
 - **Responsive Design** - Adaptive layout with minimum window size enforcement
 - **Selectable Text** - Copy pod names, IPs, labels, and other details easily
 - **Visual Indicators** - Color-coded status badges and health indicators
+- **Input Protection** - Terminal blocks input until fully initialized to prevent errors
 
 ## Screenshots
 
@@ -65,6 +76,8 @@ flutter build linux  # or macos, windows
 3. **Choose Namespaces** - Click the namespace filter button to select which namespaces to view
 4. **Browse Resources** - Use the left sidebar to switch between resource types (Pods, Deployments, etc.)
 
+> **📖 For detailed instructions, see the [User Guide](USER_GUIDE.md)**
+
 ### Working with Pods
 
 - **View Details** - Click any pod to see detailed information, containers, events, and conditions
@@ -72,11 +85,30 @@ flutter build linux  # or macos, windows
 - **View Logs** - Click the logs icon to stream container logs in real-time
 - **Port Forward** - Click the forward icon next to any container port to forward it to localhost
 
+### File Transfer
+
+#### Upload Files
+1. Open a terminal session to a container
+2. Navigate to the target directory (e.g., `cd /var/www`)
+3. Click the **upload button** in the terminal toolbar
+4. Select a file from your local system
+5. File uploads to the current directory automatically
+
+#### Download Files
+1. Open a terminal session to a container
+2. Navigate to the directory containing files you want
+3. Click the **download button** in the terminal toolbar
+4. Select one or more files/directories from the visual file picker
+5. Choose a local directory to save files
+6. Review overwrite warnings if files already exist
+7. Files download with progress tracking
+
 ### Managing Sessions
 
 - **Minimize** - Click the minimize button on any terminal or log session to dock it at the bottom
 - **Restore** - Click a minimized session to bring it back to full view
 - **Close** - Sessions automatically close if the pod is deleted
+- **Input Protection** - Terminal blocks input until fully initialized (prevents typing errors)
 
 ### Port Forwarding
 
@@ -84,6 +116,12 @@ flutter build linux  # or macos, windows
 - **View Active Forwards** - Active port forwards show a badge icon in the app bar
 - **Stop Forward** - Click the stop button (⏹) on an active forward, or use the dropdown menu
 - **Auto Cleanup** - All port forwards are automatically stopped when the app closes
+
+### Context Management
+
+- **Auto-Sync** - KubeEase automatically detects when you change contexts via kubectl
+- **Namespace Memory** - Your namespace selections are remembered per context
+- **Seamless Switching** - Switch contexts without losing your workflow preferences
 
 ## Configuration
 
@@ -119,10 +157,12 @@ lib/
 
 ### Key Dependencies
 
-- **k8s** - Kubernetes API client for Dart
-- **xterm** - Terminal emulator widget
-- **pty** - Pseudo-terminal support for interactive shells
-- **window_manager** - Desktop window management
+- **k8s** (1.27.0+dev.2) - Kubernetes API client for Dart
+- **xterm** (3.5.0) - Terminal emulator widget
+- **pty** (0.3.1) - Pseudo-terminal support for interactive shells
+- **window_manager** (0.4.2) - Desktop window management
+- **file_picker** (4.6.1) - Native file picker for upload/download
+- **watcher** (1.2.0) - File system monitoring for kubeconfig changes
 
 ### Contributing
 
@@ -134,14 +174,28 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
+## Documentation
+
+- **[User Guide](USER_GUIDE.md)** - Comprehensive guide covering all features
+- **[README](README.md)** - Quick start and overview (this file)
+
 ## Roadmap
 
+### Completed ✅
+- [x] Interactive terminal sessions with PTY support
+- [x] File upload/download with visual file picker
+- [x] Multi-select file downloads
+- [x] Overwrite protection for downloads
+- [x] Current directory tracking in terminals
+- [x] External kubeconfig change detection
+- [x] Namespace memory per context
+- [x] Terminal input protection during initialization
+
+### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
-- [ ] Resource editing and YAML export
-- [ ] Multi-cluster dashboard view
-- [ ] Custom resource definitions (CRD) support
 - [ ] Metrics and resource usage graphs
-- [ ] Theme customization options
+- [ ] Search/filter in file picker
+- [ ] Persistent namespace preferences
 
 ## License
 
@@ -152,6 +206,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Built with [Flutter](https://flutter.dev/)
 - Kubernetes API client: [k8s](https://pub.dev/packages/k8s)
 - Terminal emulator: [xterm.dart](https://pub.dev/packages/xterm)
+- Pseudo-terminal: [pty](https://pub.dev/packages/pty)
+- File picker: [file_picker](https://pub.dev/packages/file_picker)
+- File watcher: [watcher](https://pub.dev/packages/watcher)
 
 ## Support
 

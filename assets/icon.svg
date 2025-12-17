@@ -1,73 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
+  <!-- Background -->
   <circle cx="256" cy="256" r="256" fill="#1976D2"/>
   
   <!-- Ship helm icon -->
   <g transform="translate(256, 256)">
-    <!-- Outer wheel -->
-    <circle cx="0" cy="0" r="180" fill="none" stroke="#FFFFFF" stroke-width="16"/>
-    
-    <!-- Inner hub -->
-    <circle cx="0" cy="0" r="40" fill="#FFFFFF"/>
-    
-    <!-- 8 spokes -->
-    <!-- Spoke 1 (top) -->
-    <line x1="0" y1="-40" x2="0" y2="-180" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 2 (top-right) -->
-    <line x1="28.28" y1="-28.28" x2="127.28" y2="-127.28" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 3 (right) -->
-    <line x1="40" y1="0" x2="180" y2="0" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 4 (bottom-right) -->
-    <line x1="28.28" y1="28.28" x2="127.28" y2="127.28" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 5 (bottom) -->
-    <line x1="0" y1="40" x2="0" y2="180" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 6 (bottom-left) -->
-    <line x1="-28.28" y1="28.28" x2="-127.28" y2="127.28" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 7 (left) -->
-    <line x1="-40" y1="0" x2="-180" y2="0" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Spoke 8 (top-left) -->
-    <line x1="-28.28" y1="-28.28" x2="-127.28" y2="-127.28" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-    
-    <!-- Handles on each spoke -->
-    <!-- Handle 1 -->
-    <rect x="-15" y="-200" width="30" height="40" rx="8" fill="#FFFFFF"/>
-    
-    <!-- Handle 2 -->
-    <g transform="rotate(45)">
-      <rect x="-15" y="-200" width="30" height="40" rx="8" fill="#FFFFFF"/>
+    <!-- Outer rim -->
+    <circle cx="0" cy="0" r="160" fill="none" stroke="#FFFFFF" stroke-width="20"/>
+
+    <!-- 8 spokes with handles -->
+    <g id="spoke">
+      <!-- Spoke line -->
+      <line x1="0" y1="-50" x2="0" y2="-150" stroke="#FFFFFF" stroke-width="15" stroke-linecap="round"/>
+      <!-- Tapered handle extending outward with rounded end -->
+      <path d="M -10,-150 L -18,-220 Q -18,-225 -13,-225 L 13,-225 Q 18,-225 18,-220 L 10,-150 Z" fill="#FFFFFF"/>
     </g>
     
-    <!-- Handle 3 -->
-    <rect x="170" y="-15" width="40" height="30" rx="8" fill="#FFFFFF"/>
+    <!-- Rotate spokes around center -->
+    <use href="#spoke" transform="rotate(45)"/>
+    <use href="#spoke" transform="rotate(90)"/>
+    <use href="#spoke" transform="rotate(135)"/>
+    <use href="#spoke" transform="rotate(180)"/>
+    <use href="#spoke" transform="rotate(225)"/>
+    <use href="#spoke" transform="rotate(270)"/>
+    <use href="#spoke" transform="rotate(315)"/>
     
-    <!-- Handle 4 -->
-    <g transform="rotate(135)">
-      <rect x="-15" y="-200" width="30" height="40" rx="8" fill="#FFFFFF"/>
-    </g>
-    
-    <!-- Handle 5 -->
-    <rect x="-15" y="160" width="30" height="40" rx="8" fill="#FFFFFF"/>
-    
-    <!-- Handle 6 -->
-    <g transform="rotate(225)">
-      <rect x="-15" y="-200" width="30" height="40" rx="8" fill="#FFFFFF"/>
-    </g>
-    
-    <!-- Handle 7 -->
-    <rect x="-210" y="-15" width="40" height="30" rx="8" fill="#FFFFFF"/>
-    
-    <!-- Handle 8 -->
-    <g transform="rotate(315)">
-      <rect x="-15" y="-200" width="30" height="40" rx="8" fill="#FFFFFF"/>
-    </g>
+    <!-- Center hub -->
+    <circle cx="0" cy="0" r="50" fill="#FFFFFF"/>
+    <circle cx="0" cy="0" r="50" fill="none" stroke="#FFFFFF" stroke-width="15"/>
   </g>
 </svg>
-

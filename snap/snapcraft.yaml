@@ -1,0 +1,31 @@
+name: brett-codling-kubeease
+base: core22
+version: '1.0.0'
+summary: Modern Kubernetes cluster manager
+description: |
+  KubeEase provides an intuitive desktop interface for managing your 
+  Kubernetes resources with features like interactive terminals, file 
+  transfer, log streaming, and port forwarding.
+
+grade: stable
+confinement: strict
+
+apps:
+  kubeease:
+    command: kube_ease
+    extensions: [gnome]
+    plugs:
+      - home
+      - network
+      - network-bind
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+
+parts:
+  kubeease:
+    plugin: flutter
+    source: .
+    flutter-target: lib/main.dart

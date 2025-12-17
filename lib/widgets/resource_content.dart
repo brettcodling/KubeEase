@@ -179,10 +179,12 @@ class _ResourceContentState extends State<ResourceContent> {
     _podStreamSubscription?.cancel();
 
     // Set loading state
-    setState(() {
-      _isLoading = true;
-      _pods = [];
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _pods = [];
+      });
+    }
 
     // Subscribe to the pod watch stream
     _podStreamSubscription = PodService.watchPods(
@@ -215,10 +217,12 @@ class _ResourceContentState extends State<ResourceContent> {
     _deploymentStreamSubscription?.cancel();
 
     // Set loading state
-    setState(() {
-      _isLoading = true;
-      _deployments = [];
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _deployments = [];
+      });
+    }
 
     // Subscribe to the deployment watch stream
     _deploymentStreamSubscription = DeploymentService.watchDeployments(
@@ -251,10 +255,12 @@ class _ResourceContentState extends State<ResourceContent> {
     _cronJobStreamSubscription?.cancel();
 
     // Set loading state
-    setState(() {
-      _isLoading = true;
-      _cronJobs = [];
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _cronJobs = [];
+      });
+    }
 
     // Subscribe to the cron job watch stream
     _cronJobStreamSubscription = CronJobService.watchCronJobs(
@@ -287,10 +293,12 @@ class _ResourceContentState extends State<ResourceContent> {
     _secretStreamSubscription?.cancel();
 
     // Set loading state
-    setState(() {
-      _isLoading = true;
-      _secrets = [];
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _secrets = [];
+      });
+    }
 
     // Subscribe to the secret watch stream
     _secretStreamSubscription = SecretService.watchSecrets(

@@ -18,7 +18,7 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # Check if build exists
-if [ ! -d "build/linux/x64/release/bundle" ]; then
+if [ ! -d "../build/linux/x64/release/bundle" ]; then
   echo -e "${RED}Error: Build directory not found!${NC}"
   echo "Please run 'flutter build linux --release' first."
   exit 1
@@ -37,7 +37,7 @@ fi
 
 # Copy entire bundle to /opt
 echo "Copying files to $INSTALL_DIR..."
-sudo cp -r build/linux/x64/release/bundle "$INSTALL_DIR"
+sudo cp -r ../build/linux/x64/release/bundle "$INSTALL_DIR"
 
 # Make executable
 sudo chmod +x "$INSTALL_DIR/kube_ease"
@@ -45,10 +45,10 @@ sudo chmod +x "$INSTALL_DIR/kube_ease"
 # Copy icon to proper icon theme directories
 echo "Installing icon..."
 sudo mkdir -p /usr/share/icons/hicolor/512x512/apps
-sudo cp assets/icon.png /usr/share/icons/hicolor/512x512/apps/kube-ease.png
+sudo cp ../assets/icon.png /usr/share/icons/hicolor/512x512/apps/kube-ease.png
 # Also copy to pixmaps as fallback
 sudo mkdir -p /usr/share/pixmaps
-sudo cp assets/icon.png /usr/share/pixmaps/kube-ease.png
+sudo cp ../assets/icon.png /usr/share/pixmaps/kube-ease.png
 
 # Create symlink for terminal access
 echo "Creating terminal command..."

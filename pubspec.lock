@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  file_picker:
+    dependency: "direct main"
+    description:
+      name: file_picker
+      sha256: "704259669b5e9cb24e15c11cfcf02caf5f20d30901b3916d60b6d1c2d647035f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.6.1"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -134,8 +142,21 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_plugin_android_lifecycle:
+    dependency: transitive
+    description:
+      name: flutter_plugin_android_lifecycle
+      sha256: ee8068e0e1cd16c4a82714119918efdeed33b3ba7772c54b5d094ab53f9b7fd1
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.33"
   flutter_test:
     dependency: "direct dev"
+    description: flutter
+    source: sdk
+    version: "0.0.0"
+  flutter_web_plugins:
+    dependency: transitive
     description: flutter
     source: sdk
     version: "0.0.0"
@@ -432,6 +453,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.0.2"
+  watcher:
+    dependency: "direct main"
+    description:
+      name: watcher
+      sha256: f52385d4f73589977c80797e60fe51014f7f2b957b5e9a62c3f6ada439889249
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   web:
     dependency: transitive
     description:
@@ -482,4 +511,4 @@ packages:
     version: "0.0.6"
 sdks:
   dart: ">=3.10.3 <4.0.0"
-  flutter: ">=3.19.0"
+  flutter: ">=3.35.0"

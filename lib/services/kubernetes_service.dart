@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
+import 'package:watcher/watcher.dart';
 import '../exceptions/authentication_exception.dart';
 
 /// Service class that handles common Kubernetes infrastructure operations
@@ -12,7 +13,7 @@ import '../exceptions/authentication_exception.dart';
 class KubernetesService {
   /// Reads the kubeconfig file and initializes the Kubernetes client
   static Future<(Kubernetes, Kubeconfig)> initialize() async {
-    // Read the kubeconfig file from the user's home directory
+    // Read the kubeconfig file
     final kubeconfigPath = '${Platform.environment['HOME']}/.kube/config';
     final kubeconfigYaml = await File(kubeconfigPath).readAsString();
 
@@ -179,7 +180,7 @@ class KubernetesService {
     // Update the current context in the kubeconfig object
     final updatedKubeconfig = currentKubeconfig.copyWith.currentContext(contextName);
 
-    // Write the updated kubeconfig back to the file system
+    // Write the updated kubeconfig back to the file
     final kubeconfigPath = '${Platform.environment['HOME']}/.kube/config';
     await File(kubeconfigPath).writeAsString(updatedKubeconfig.toYaml());
 
@@ -222,6 +223,77 @@ class KubernetesService {
     }
 
     return (kubernetesClient, updatedKubeconfig);
+  }
+
+  /// Watches the kubeconfig file for external changes
+  /// Returns a stream that emits the new current context when the file changes
+  static Stream<String> watchKubeconfigChanges() {
+    late StreamController<String> controller;
+    StreamSubscription<WatchEvent>? watcherSubscription;
+    String? lastContext;
+
+    controller = StreamController<String>(
+      onListen: () async {
+        try {
+          final kubeconfigPath = '${Platform.environment['HOME']}/.kube/config';
+          final kubeconfigFile = File(kubeconfigPath);
+
+          if (!await kubeconfigFile.exists()) {
+            debugPrint('Kubeconfig file not found at $kubeconfigPath');
+            return;
+          }
+
+          // Get initial context
+          try {
+            final kubeconfigYaml = await kubeconfigFile.readAsString();
+            final kubeconfig = Kubeconfig.fromYaml(kubeconfigYaml);
+            lastContext = kubeconfig.currentContext;
+          } catch (e) {
+            debugPrint('Error reading initial kubeconfig: $e');
+          }
+
+          // Watch the .kube directory for changes
+          final watcher = FileWatcher(kubeconfigPath);
+          watcherSubscription = watcher.events.listen((event) async {
+            // Only process modify events
+            if (event.type == ChangeType.MODIFY) {
+              try {
+                // Small delay to ensure file write is complete
+                await Future.delayed(const Duration(milliseconds: 100));
+
+                final kubeconfigYaml = await kubeconfigFile.readAsString();
+                final kubeconfig = Kubeconfig.fromYaml(kubeconfigYaml);
+                final currentContext = kubeconfig.currentContext;
+
+                // Only emit if the context has actually changed
+                if (currentContext != null && currentContext != lastContext) {
+                  lastContext = currentContext;
+                  if (!controller.isClosed) {
+                    controller.add(currentContext);
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error processing kubeconfig change: $e');
+                if (!controller.isClosed) {
+                  controller.addError(e);
+                }
+              }
+            }
+          });
+        } catch (e) {
+          debugPrint('Error setting up kubeconfig watcher: $e');
+          if (!controller.isClosed) {
+            controller.addError(e);
+          }
+        }
+      },
+      onCancel: () {
+        watcherSubscription?.cancel();
+        controller.close();
+      },
+    );
+
+    return controller.stream;
   }
 }
 

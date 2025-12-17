@@ -34,6 +34,12 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   bool _isLoadingNamespaces = false;
   StreamSubscription<List<String>>? _namespaceStreamSubscription;
 
+  // Remember selected namespaces per context (not persisted between app launches)
+  final Map<String, Set<String>> _contextNamespaceMemory = {};
+
+  // Kubeconfig file watcher
+  StreamSubscription<String>? _kubeconfigWatcherSubscription;
+
   // Resource type selection state
   ResourceType _selectedResourceType = ResourceType.pods;
 
@@ -49,8 +55,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
 
   @override
   void dispose() {
-    // Cancel namespace stream subscription when widget is disposed
+    // Cancel all stream subscriptions when widget is disposed
     _namespaceStreamSubscription?.cancel();
+    _kubeconfigWatcherSubscription?.cancel();
     super.dispose();
   }
 
@@ -65,6 +72,8 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       _loadContexts();
       // Step 3: Load namespaces from the current context
       _loadNamespaces();
+      // Step 4: Start watching for external kubeconfig changes
+      _startWatchingKubeconfig();
     }
   }
 
@@ -130,6 +139,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
             _availableNamespaces = namespaces;
             _isLoadingNamespaces = false;
           });
+
+          // Restore remembered namespaces for this context if they exist
+          _restoreRememberedNamespaces();
         }
       },
       onError: (error) {
@@ -143,9 +155,35 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     );
   }
 
+  /// Restores previously selected namespaces for the current context
+  void _restoreRememberedNamespaces() {
+    if (_activeContext.isEmpty) return;
+
+    // Check if we have remembered namespaces for this context
+    final rememberedNamespaces = _contextNamespaceMemory[_activeContext];
+    if (rememberedNamespaces != null && rememberedNamespaces.isNotEmpty) {
+      // Only restore namespaces that still exist in the available namespaces
+      final validNamespaces = rememberedNamespaces
+          .where((ns) => _availableNamespaces.contains(ns))
+          .toSet();
+
+      if (validNamespaces.isNotEmpty && validNamespaces != _selectedNamespaces) {
+        setState(() {
+          _selectedNamespaces = validNamespaces;
+        });
+        debugPrint('Restored ${validNamespaces.length} remembered namespaces for context: $_activeContext');
+      }
+    }
+  }
+
   /// Handles context selection from the drawer
   Future<void> _onContextSelected(String contextName) async {
     if (_kubeconfig == null) return;
+
+    // Save current context's selected namespaces before switching
+    if (_activeContext.isNotEmpty && _selectedNamespaces.isNotEmpty) {
+      _contextNamespaceMemory[_activeContext] = Set.from(_selectedNamespaces);
+    }
 
     // Cancel existing namespace watcher before switching contexts
     _namespaceStreamSubscription?.cancel();
@@ -154,7 +192,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     setState(() {
       _activeContext = contextName;
       _isLoadingNamespaces = true;
-      // Clear selected namespaces when switching contexts
+      // Clear selected namespaces when switching contexts (will be restored by _loadNamespaces if remembered)
       _selectedNamespaces.clear();
     });
 
@@ -189,11 +227,96 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     }
   }
 
+  /// Starts watching the kubeconfig file for external changes
+  void _startWatchingKubeconfig() {
+    // Cancel any existing watcher
+    _kubeconfigWatcherSubscription?.cancel();
+
+    // Subscribe to kubeconfig changes
+    _kubeconfigWatcherSubscription = KubernetesService.watchKubeconfigChanges().listen(
+      (newContext) async {
+        debugPrint('External kubeconfig change detected: context changed to $newContext');
+
+        // Only process if the context is different from our current context
+        if (newContext != _activeContext) {
+          await _handleExternalContextChange(newContext);
+        }
+      },
+      onError: (error) {
+        debugPrint('Error watching kubeconfig: $error');
+      },
+    );
+  }
+
+  /// Handles external context changes (from kubectl or other tools)
+  Future<void> _handleExternalContextChange(String newContext) async {
+    debugPrint('Handling external context change to: $newContext');
+
+    // Save current context's selected namespaces before switching
+    if (_activeContext.isNotEmpty && _selectedNamespaces.isNotEmpty) {
+      _contextNamespaceMemory[_activeContext] = Set.from(_selectedNamespaces);
+    }
+
+    // Navigate back to home screen if we're on a detail screen
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+
+    // Cancel all existing watchers
+    _namespaceStreamSubscription?.cancel();
+
+    // Clear selected namespaces (will be restored by _loadNamespaces if remembered)
+    setState(() {
+      _activeContext = newContext;
+      _selectedNamespaces.clear();
+      _isLoadingNamespaces = true;
+    });
+
+    try {
+      // Reinitialize the Kubernetes client with the new context
+      final (client, config) = await KubernetesService.initialize();
+
+      if (mounted) {
+        setState(() {
+          _kubernetesClient = client;
+          _kubeconfig = config;
+          _authError = null;
+        });
+
+        // Reload contexts to update the UI
+        _loadContexts();
+
+        // Start watching namespaces for the new context
+        _loadNamespaces();
+      }
+    } on AuthenticationException catch (e) {
+      if (mounted) {
+        setState(() {
+          _authError = e;
+          _isLoadingNamespaces = false;
+        });
+        _showAuthenticationErrorDialog(e);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingNamespaces = false;
+        });
+        _showGenericErrorDialog(e.toString());
+      }
+    }
+  }
+
   /// Handles namespace selection changes from the drawer
   void _onNamespaceSelectionChanged(Set<String> selectedNamespaces) {
     setState(() {
       _selectedNamespaces = selectedNamespaces;
     });
+
+    // Remember the selected namespaces for this context
+    if (_activeContext.isNotEmpty) {
+      _contextNamespaceMemory[_activeContext] = Set.from(selectedNamespaces);
+    }
   }
 
   @override
