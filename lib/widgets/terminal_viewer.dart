@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:k8s/k8s.dart';
 import 'package:xterm/xterm.dart';
 import 'package:pty/pty.dart';
 import 'package:file_picker/file_picker.dart';
@@ -676,21 +675,44 @@ class _FileSelectionDialog extends StatefulWidget {
 
 class _FileSelectionDialogState extends State<_FileSelectionDialog> {
   final Set<String> _selectedFiles = {};
+  final TextEditingController _filterController = TextEditingController();
   bool _selectAll = false;
+  String _filterText = '';
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _filteredFiles {
+    if (_filterText.isEmpty) {
+      return widget.files;
+    }
+    return widget.files
+        .where((file) => file.toLowerCase().contains(_filterText.toLowerCase()))
+        .toList();
+  }
 
   void _toggleSelectAll() {
     setState(() {
       _selectAll = !_selectAll;
       if (_selectAll) {
-        _selectedFiles.addAll(widget.files);
+        // Select all filtered files
+        _selectedFiles.addAll(_filteredFiles);
       } else {
-        _selectedFiles.clear();
+        // Deselect all filtered files
+        _selectedFiles.removeAll(_filteredFiles);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredFiles = _filteredFiles;
+    final filteredSelectedCount = filteredFiles.where((f) => _selectedFiles.contains(f)).length;
+    final allFilteredSelected = filteredFiles.isNotEmpty && filteredSelectedCount == filteredFiles.length;
+
     return AlertDialog(
       title: Row(
         children: [
@@ -716,42 +738,81 @@ class _FileSelectionDialogState extends State<_FileSelectionDialog> {
         height: 400,
         child: Column(
           children: [
+            // Filter text field
+            TextField(
+              controller: _filterController,
+              decoration: InputDecoration(
+                labelText: 'Filter files',
+                hintText: 'Type to filter...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _filterText.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _filterController.clear();
+                            _filterText = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _filterText = value;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
             // Select all checkbox
             CheckboxListTile(
               title: Text(
-                'Select All (${widget.files.length} files)',
+                _filterText.isEmpty
+                    ? 'Select All (${widget.files.length} files)'
+                    : 'Select All Filtered (${filteredFiles.length} of ${widget.files.length} files)',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              value: _selectAll,
+              value: allFilteredSelected,
+              tristate: filteredSelectedCount > 0 && !allFilteredSelected,
               onChanged: (_) => _toggleSelectAll(),
               dense: true,
             ),
             const Divider(),
             // File list
             Expanded(
-              child: ListView.builder(
-                itemCount: widget.files.length,
-                itemBuilder: (context, index) {
-                  final file = widget.files[index];
-                  final isSelected = _selectedFiles.contains(file);
+              child: filteredFiles.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No files match filter',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filteredFiles.length,
+                      itemBuilder: (context, index) {
+                        final file = filteredFiles[index];
+                        final isSelected = _selectedFiles.contains(file);
 
-                  return CheckboxListTile(
-                    title: Text(file),
-                    value: isSelected,
-                    onChanged: (selected) {
-                      setState(() {
-                        if (selected == true) {
-                          _selectedFiles.add(file);
-                        } else {
-                          _selectedFiles.remove(file);
-                        }
-                        _selectAll = _selectedFiles.length == widget.files.length;
-                      });
-                    },
-                    dense: true,
-                  );
-                },
-              ),
+                        return CheckboxListTile(
+                          title: Text(file),
+                          value: isSelected,
+                          onChanged: (selected) {
+                            setState(() {
+                              if (selected == true) {
+                                _selectedFiles.add(file);
+                              } else {
+                                _selectedFiles.remove(file);
+                              }
+                            });
+                          },
+                          dense: true,
+                        );
+                      },
+                    ),
             ),
           ],
         ),

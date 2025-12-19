@@ -912,7 +912,12 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
   @override
   void initState() {
     super.initState();
-    _startWatchingEnvVars();
+    // Defer API call until after drawer animation completes (300ms)
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        _startWatchingEnvVars();
+      }
+    });
   }
 
   @override
