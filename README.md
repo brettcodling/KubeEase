@@ -22,6 +22,7 @@ A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase
 ### 📁 File Management
 - **Smart Upload** - Upload files to the current directory in your terminal session
 - **Visual Download** - Browse and select multiple files/directories with a visual file picker
+- **File Filtering** - Search and filter files in the download dialog for quick selection
 - **Overwrite Protection** - Warnings when downloading files that already exist locally
 - **Bulk Operations** - Download multiple files at once
 - **Directory Tracking** - Automatically tracks your current directory in terminal sessions
@@ -98,10 +99,12 @@ flutter build linux  # or macos, windows
 1. Open a terminal session to a container
 2. Navigate to the directory containing files you want
 3. Click the **download button** in the terminal toolbar
-4. Select one or more files/directories from the visual file picker
-5. Choose a local directory to save files
-6. Review overwrite warnings if files already exist
-7. Files download with progress tracking
+4. **Filter files** (optional) - Type in the search box to filter the file list
+5. Select one or more files/directories from the visual file picker
+6. Use **Select All** to select all filtered files at once
+7. Choose a local directory to save files
+8. Review overwrite warnings if files already exist
+9. Files download with progress tracking
 
 ### Managing Sessions
 
@@ -191,11 +194,11 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Namespace memory per context
 - [x] Terminal input protection during initialization
 - [x] Persistent namespace preferences
+- [x] Search/filter in file picker
 
 ### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
 - [ ] Metrics and resource usage graphs
-- [ ] Search/filter in file picker
 
 ## License
 

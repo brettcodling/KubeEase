@@ -275,17 +275,22 @@ The terminal includes a toolbar with the following buttons:
 1. Click the **download icon** (download arrow)
 2. Wait while KubeEase fetches the file list from current directory
 3. **File Selection Dialog** appears showing all files/directories
-4. Select one or more items to download:
+4. **Filter files** (optional):
+   - Type in the search box to filter the file list
+   - Filter is case-insensitive
+   - Click the clear button (X) to reset filter
+   - "Select All" works with filtered files only
+5. Select one or more items to download:
    - Check individual items
-   - Use "Select All" to select everything
-5. Click "Download X file(s)" button
-6. Choose a local directory to save files
-7. **Overwrite Warning** (if applicable):
+   - Use "Select All" to select all (filtered) files
+6. Click "Download X file(s)" button
+7. Choose a local directory to save files
+8. **Overwrite Warning** (if applicable):
    - If any selected items already exist locally, a warning appears
    - Lists all items that will be overwritten
    - Choose "Cancel" to abort or "Overwrite" to proceed
-8. Files download with progress indicator
-9. Success message shows count of downloaded files
+9. Files download with progress indicator
+10. Success message shows count of downloaded files
 
 ---
 
@@ -326,20 +331,28 @@ cd /var/www/html
 1. Navigate to the directory containing files you want to download
 2. Click the **download button** in the terminal toolbar
 3. Wait for file list to load (shows "Loading files..." dialog)
-4. Select files/directories from the list:
+4. **Filter files** (optional):
+   - Type in the search box at the top of the dialog
+   - File list updates in real-time as you type
+   - Filter is case-insensitive (e.g., "log" matches "LOG", "Log", "log")
+   - Clear button (X) appears when filter is active
+   - "Select All" checkbox label shows filtered count
+5. Select files/directories from the list:
    - Individual selection by checking boxes
-   - "Select All" to choose everything
+   - "Select All" to choose all filtered files
    - Download button shows count: "Download X file(s)"
-5. Click the download button
-6. Choose a local directory to save files
-7. If files exist, review overwrite warning:
+   - Selected files remain selected when changing filter
+6. Click the download button
+7. Choose a local directory to save files
+8. If files exist, review overwrite warning:
    - Lists all conflicting items in red
    - Choose to cancel or overwrite
-8. Wait for download to complete
-9. Check success message for results
+9. Wait for download to complete
+10. Check success message for results
 
 **Features**:
 - Visual file browser for current directory
+- **Real-time search/filter** for quick file finding
 - Multi-select capability
 - Overwrite protection with warnings
 - Bulk download support
@@ -349,7 +362,7 @@ cd /var/www/html
 **Tips**:
 - Hidden files (starting with `.`) are included in the list
 - Directories can be selected and downloaded
-- Search/filter not available (navigate to specific directories instead)
+- Filter searches in filenames only (not content)
 - Downloads preserve original filenames
 
 ---
@@ -520,8 +533,10 @@ Each minimized session shows:
 
 #### File Management
 1. Navigate to the target directory before uploading
-2. Use bulk download to grab multiple files at once
-3. Pay attention to overwrite warnings to avoid data loss
+2. Use the filter feature to quickly find specific files in large directories
+3. Use bulk download to grab multiple files at once
+4. Combine filter + "Select All" to download files matching a pattern
+5. Pay attention to overwrite warnings to avoid data loss
 
 #### Session Organization
 1. Minimize sessions you want to keep but aren't actively using
@@ -694,6 +709,41 @@ KubeEase remembers your namespace selections per context:
 - No need to reselect namespaces each time
 - Maintains your workflow preferences across sessions
 - Seamless experience when working with multiple clusters
+
+### File Download Filtering
+
+The file download dialog includes a powerful search/filter feature:
+
+**How it works**:
+1. Open the download dialog from any terminal session
+2. Type in the search box at the top to filter files
+3. File list updates in real-time as you type
+4. Filter is case-insensitive (matches "log", "LOG", "Log", etc.)
+5. Click the clear button (X) to reset the filter
+
+**Use Cases**:
+- **Find specific files**: Type "config" to show only configuration files
+- **Filter by extension**: Type ".log" to show only log files
+- **Pattern matching**: Type "2024" to find files with dates in the name
+- **Bulk selection**: Filter + "Select All" to download all matching files
+
+**Features**:
+- Real-time filtering as you type
+- Case-insensitive search
+- Clear button to reset filter
+- "Select All" works with filtered results only
+- Selected files persist when changing filter
+- Shows "No files match filter" when no results
+
+**Example Workflow**:
+```
+1. Open download dialog (shows 100 files)
+2. Type "error" in filter box
+3. File list shows only 5 files containing "error"
+4. Click "Select All" to select those 5 files
+5. Click "Download 5 file(s)"
+6. All error-related files downloaded
+```
 
 ### Session State Preservation
 
