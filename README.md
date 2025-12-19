@@ -190,12 +190,12 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] External kubeconfig change detection
 - [x] Namespace memory per context
 - [x] Terminal input protection during initialization
+- [x] Persistent namespace preferences
 
 ### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
 - [ ] Metrics and resource usage graphs
 - [ ] Search/filter in file picker
-- [ ] Persistent namespace preferences
 
 ## License
 

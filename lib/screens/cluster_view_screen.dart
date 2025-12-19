@@ -4,6 +4,7 @@ import 'package:k8s/k8s.dart';
 import '../services/kubernetes_service.dart';
 import '../services/port_forward_manager.dart';
 import '../services/connection_error_manager.dart';
+import '../services/preferences_service.dart';
 import '../widgets/context_drawer.dart';
 import '../widgets/namespace_drawer.dart';
 import '../widgets/resource_menu.dart';
@@ -34,9 +35,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   Set<String> _selectedNamespaces = {};
   bool _isLoadingNamespaces = false;
   StreamSubscription<List<String>>? _namespaceStreamSubscription;
-
-  // Remember selected namespaces per context (not persisted between app launches)
-  final Map<String, Set<String>> _contextNamespaceMemory = {};
 
   // Kubeconfig file watcher
   StreamSubscription<String>? _kubeconfigWatcherSubscription;
@@ -165,13 +163,13 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     );
   }
 
-  /// Restores previously selected namespaces for the current context
+  /// Restores previously selected namespaces for the current context from persistent storage
   void _restoreRememberedNamespaces() {
     if (_activeContext.isEmpty) return;
 
-    // Check if we have remembered namespaces for this context
-    final rememberedNamespaces = _contextNamespaceMemory[_activeContext];
-    if (rememberedNamespaces != null && rememberedNamespaces.isNotEmpty) {
+    // Load saved namespaces for this context from persistent storage
+    final rememberedNamespaces = PreferencesService.instance.loadNamespaceSelection(_activeContext);
+    if (rememberedNamespaces.isNotEmpty) {
       // Only restore namespaces that still exist in the available namespaces
       final validNamespaces = rememberedNamespaces
           .where((ns) => _availableNamespaces.contains(ns))
@@ -181,7 +179,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
         setState(() {
           _selectedNamespaces = validNamespaces;
         });
-        debugPrint('Restored ${validNamespaces.length} remembered namespaces for context: $_activeContext');
+        debugPrint('Restored ${validNamespaces.length} persisted namespaces for context: $_activeContext');
       }
     }
   }
@@ -190,9 +188,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   Future<void> _onContextSelected(String contextName) async {
     if (_kubeconfig == null) return;
 
-    // Save current context's selected namespaces before switching
+    // Save current context's selected namespaces to persistent storage before switching
     if (_activeContext.isNotEmpty && _selectedNamespaces.isNotEmpty) {
-      _contextNamespaceMemory[_activeContext] = Set.from(_selectedNamespaces);
+      await PreferencesService.instance.saveNamespaceSelection(_activeContext, _selectedNamespaces);
     }
 
     // Cancel existing namespace watcher before switching contexts
@@ -262,9 +260,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   Future<void> _handleExternalContextChange(String newContext) async {
     debugPrint('Handling external context change to: $newContext');
 
-    // Save current context's selected namespaces before switching
+    // Save current context's selected namespaces to persistent storage before switching
     if (_activeContext.isNotEmpty && _selectedNamespaces.isNotEmpty) {
-      _contextNamespaceMemory[_activeContext] = Set.from(_selectedNamespaces);
+      await PreferencesService.instance.saveNamespaceSelection(_activeContext, _selectedNamespaces);
     }
 
     // Navigate back to home screen if we're on a detail screen
@@ -323,9 +321,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       _selectedNamespaces = selectedNamespaces;
     });
 
-    // Remember the selected namespaces for this context
+    // Save the selected namespaces for this context to persistent storage
     if (_activeContext.isNotEmpty) {
-      _contextNamespaceMemory[_activeContext] = Set.from(selectedNamespaces);
+      PreferencesService.instance.saveNamespaceSelection(_activeContext, selectedNamespaces);
     }
   }
 

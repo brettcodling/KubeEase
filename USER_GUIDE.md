@@ -96,7 +96,8 @@ Kubernetes contexts allow you to switch between different clusters or user confi
 
 KubeEase remembers your namespace selections for each context:
 - When you switch contexts, your previous namespace selections are restored
-- This memory is session-based (not persisted between app restarts)
+- Namespace selections are persisted between app restarts
+- Each context maintains its own independent namespace selection
 - Makes it easy to switch between contexts without reconfiguring each time
 
 ### External Context Changes
@@ -683,15 +684,16 @@ KubeEase automatically detects when you change contexts using kubectl:
 KubeEase remembers your namespace selections per context:
 
 **How it works**:
-1. When you select namespaces, they're stored for the current context
-2. Switching contexts saves your current selections
-3. Returning to a context restores your previous selections
-4. Memory is session-based (cleared on app restart)
+1. When you select namespaces, they're automatically saved for the current context
+2. Switching contexts saves your current selections and restores the new context's selections
+3. Namespace selections persist between app restarts
+4. Each context maintains its own independent namespace selection
 
 **Benefits**:
 - Faster context switching
 - No need to reselect namespaces each time
-- Maintains your workflow preferences
+- Maintains your workflow preferences across sessions
+- Seamless experience when working with multiple clusters
 
 ### Session State Preservation
 

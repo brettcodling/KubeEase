@@ -5,10 +5,14 @@ import 'widgets/logs_overlay.dart';
 import 'widgets/connection_error_overlay.dart';
 import 'services/port_forward_manager.dart';
 import 'services/connection_error_manager.dart';
+import 'services/preferences_service.dart';
 
 /// Entry point of the application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize preferences service for persistent storage
+  await PreferencesService.instance.initialize();
 
   // Set minimum window size
   await windowManager.ensureInitialized();
