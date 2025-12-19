@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../../models/cron_job_info.dart';
+import '../connection_error_manager.dart';
 
 /// Service class that handles all CronJob-related Kubernetes API interactions
 class CronJobService {
@@ -45,6 +46,14 @@ class CronJobService {
         }
       } catch (e) {
         debugPrint('Error polling for cron job detail updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -60,6 +69,13 @@ class CronJobService {
           }
         } catch (e) {
           debugPrint('Error fetching initial cron job details: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -67,6 +83,12 @@ class CronJobService {
 
         // Poll every 3 seconds
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();
@@ -98,7 +120,7 @@ class CronJobService {
       return allCronJobs;
     } catch (e) {
       debugPrint('Error fetching cron jobs: $e');
-      return [];
+      rethrow; // Rethrow to allow connection error detection
     }
   }
 
@@ -126,6 +148,14 @@ class CronJobService {
         }
       } catch (e) {
         debugPrint('Error polling for cron job updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -142,6 +172,13 @@ class CronJobService {
           }
         } catch (e) {
           debugPrint('Error fetching initial cron jobs: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -149,6 +186,12 @@ class CronJobService {
 
         // Start periodic polling (every 3 seconds)
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();

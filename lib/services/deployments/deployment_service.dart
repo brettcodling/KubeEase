@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../../models/deployment_info.dart';
+import '../connection_error_manager.dart';
 
 /// Service class that handles Deployment-related Kubernetes API interactions
 class DeploymentService {
@@ -125,7 +126,7 @@ class DeploymentService {
       return allDeployments;
     } catch (e) {
       debugPrint('Error fetching deployments: $e');
-      return [];
+      rethrow; // Rethrow to allow connection error detection
     }
   }
 
@@ -153,6 +154,14 @@ class DeploymentService {
         }
       } catch (e) {
         debugPrint('Error polling for deployment updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -169,6 +178,13 @@ class DeploymentService {
           }
         } catch (e) {
           debugPrint('Error fetching initial deployments: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -176,6 +192,12 @@ class DeploymentService {
 
         // Start periodic polling (every 3 seconds)
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();

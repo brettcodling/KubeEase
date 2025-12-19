@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../../models/pod_info.dart';
 import '../../models/pod_event.dart';
+import '../connection_error_manager.dart';
 
 /// Service class that handles all Pod-related Kubernetes API interactions
 class PodService {
@@ -46,6 +47,14 @@ class PodService {
         }
       } catch (e) {
         debugPrint('Error polling for pod detail updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -61,6 +70,13 @@ class PodService {
           }
         } catch (e) {
           debugPrint('Error fetching initial pod details: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -68,6 +84,12 @@ class PodService {
 
         // Poll every 3 seconds
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();
@@ -99,7 +121,7 @@ class PodService {
       return allPods;
     } catch (e) {
       debugPrint('Error fetching pods: $e');
-      return [];
+      rethrow; // Rethrow to allow connection error detection
     }
   }
 
@@ -131,6 +153,14 @@ class PodService {
         }
       } catch (e) {
         debugPrint('Error polling for pod updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -147,6 +177,13 @@ class PodService {
           }
         } catch (e) {
           debugPrint('Error fetching initial pods: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -154,6 +191,12 @@ class PodService {
 
         // Start periodic polling (every 3 seconds)
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();
@@ -401,6 +444,14 @@ class PodService {
         }
       } catch (e) {
         debugPrint('Error polling for pod events: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -416,6 +467,13 @@ class PodService {
           }
         } catch (e) {
           debugPrint('Error fetching initial pod events: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -423,6 +481,12 @@ class PodService {
 
         // Poll every 3 seconds
         timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+
+        // Register cancel callback
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();

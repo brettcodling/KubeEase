@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/kubernetes_service.dart';
 import '../services/port_forward_manager.dart';
+import '../services/connection_error_manager.dart';
 import '../widgets/context_drawer.dart';
 import '../widgets/namespace_drawer.dart';
 import '../widgets/resource_menu.dart';
@@ -49,7 +50,16 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   @override
   void initState() {
     super.initState();
+    // Set up retry callback for connection errors
+    ConnectionErrorManager().setRetryCallback(_handleRetry);
     // Initialize the app when the widget is first created
+    _initializeApp();
+  }
+
+  /// Handles retry action from connection error dialog
+  void _handleRetry() {
+    debugPrint('Retrying connection after error...');
+    // Reinitialize the app
     _initializeApp();
   }
 

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'screens/cluster_view_screen.dart';
 import 'widgets/logs_overlay.dart';
+import 'widgets/connection_error_overlay.dart';
 import 'services/port_forward_manager.dart';
+import 'services/connection_error_manager.dart';
 
 /// Entry point of the application
 void main() async {
@@ -40,6 +42,7 @@ class _KubernetesManagerAppState extends State<KubernetesManagerApp> {
   @override
   void dispose() {
     PortForwardManager().dispose();
+    ConnectionErrorManager().dispose();
     super.dispose();
   }
 
@@ -53,7 +56,10 @@ class _KubernetesManagerAppState extends State<KubernetesManagerApp> {
       ),
       home: const ClusterViewScreen(),
       builder: (context, child) {
-        return SessionOverlay(child: child ?? const SizedBox.shrink());
+        // Wrap with connection error overlay first, then session overlay
+        return ConnectionErrorOverlay(
+          child: SessionOverlay(child: child ?? const SizedBox.shrink()),
+        );
       },
       debugShowCheckedModeBanner: false,
     );

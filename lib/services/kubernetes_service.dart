@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import 'package:watcher/watcher.dart';
 import '../exceptions/authentication_exception.dart';
+import '../exceptions/connection_exception.dart';
+import 'connection_error_manager.dart';
 
 /// Service class that handles common Kubernetes infrastructure operations
 /// Resource-specific operations are in separate service classes:
@@ -85,10 +87,10 @@ class KubernetesService {
     try {
       // Get the Core V1 API client to interact with Kubernetes
       final coreV1Api = kubernetesClient.client.getCoreV1Api();
-      
+
       // Fetch all namespaces from the cluster
       final allNamespaces = await coreV1Api.listNamespace();
-      
+
       // Extract namespace names from the response
       final namespaceList = <String>[];
       allNamespaces.data?.items.forEach((namespace) {
@@ -96,11 +98,11 @@ class KubernetesService {
           namespaceList.add(namespace.metadata?.name ?? '');
         }
       });
-      
+
       return namespaceList;
     } catch (e) {
       debugPrint('Error loading namespaces: $e');
-      return [];
+      rethrow; // Rethrow to allow connection error detection
     }
   }
 
@@ -125,6 +127,15 @@ class KubernetesService {
         }
       } catch (e) {
         debugPrint('Error polling for namespace updates: $e');
+
+        // Check if this is a connection error
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          // Connection error handled globally, cancel this watcher
+          timer?.cancel();
+          controller.close();
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
@@ -141,6 +152,14 @@ class KubernetesService {
           }
         } catch (e) {
           debugPrint('Error fetching initial namespaces: $e');
+
+          // Check if this is a connection error
+          if (ConnectionErrorManager().checkAndHandleError(e)) {
+            // Connection error handled globally, don't start polling
+            controller.close();
+            return;
+          }
+
           if (!controller.isClosed) {
             controller.addError(e);
           }
@@ -148,6 +167,12 @@ class KubernetesService {
 
         // Start periodic polling (every 5 seconds for namespaces)
         timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
+
+        // Register cancel callback with connection error manager
+        ConnectionErrorManager().registerWatcherCancelCallback(() {
+          timer?.cancel();
+          controller.close();
+        });
       },
       onCancel: () {
         timer?.cancel();
