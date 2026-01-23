@@ -247,6 +247,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Search/filter in file picker
 - [x] Real-time resource metrics with historical charts
 - [x] Automatic authentication token refresh
+- [x] Support for custom resources (CRDs)
 
 ### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
