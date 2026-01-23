@@ -44,9 +44,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   // Resource type selection state
   ResourceType _selectedResourceType = ResourceType.pods;
 
-  // Error state
-  AuthenticationException? _authError;
-
   @override
   void initState() {
     super.initState();
@@ -78,7 +75,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       setState(() {
         _kubernetesClient = client;
         _kubeconfig = config;
-        _authError = null;
       });
     }
 
@@ -118,13 +114,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       setState(() {
         _kubernetesClient = client;
         _kubeconfig = config;
-        _authError = null; // Clear any previous errors
       });
       return true;
     } on AuthenticationException catch (e) {
-      setState(() {
-        _authError = e;
-      });
       // Show error dialog
       if (mounted) {
         _showAuthenticationErrorDialog(e);
@@ -247,14 +239,12 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       setState(() {
         _kubernetesClient = client;
         _kubeconfig = config;
-        _authError = null; // Clear any previous errors
       });
 
       // Start watching namespaces for the new context
       _loadNamespaces();
     } on AuthenticationException catch (e) {
       setState(() {
-        _authError = e;
         _isLoadingNamespaces = false;
       });
       // Show error dialog
@@ -325,7 +315,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
         setState(() {
           _kubernetesClient = client;
           _kubeconfig = config;
-          _authError = null;
         });
 
         // Reload contexts to update the UI
@@ -337,7 +326,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     } on AuthenticationException catch (e) {
       if (mounted) {
         setState(() {
-          _authError = e;
           _isLoadingNamespaces = false;
         });
         _showAuthenticationErrorDialog(e);
