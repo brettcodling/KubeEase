@@ -48,6 +48,13 @@ class SecretService {
       } catch (e) {
         debugPrint('Error polling for secret detail updates: $e');
 
+        // Check if this is a 401 error (expired token) and trigger refresh
+        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+        if (wasAuthError) {
+          // Token refresh was triggered
+          return;
+        }
+
         // Check if this is a connection error
         if (ConnectionErrorManager().checkAndHandleError(e)) {
           timer?.cancel();

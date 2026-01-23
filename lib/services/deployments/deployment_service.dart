@@ -280,6 +280,14 @@ class DeploymentService {
         }
       } catch (e) {
         debugPrint('Error polling for deployment detail updates: $e');
+
+        // Check if this is a 401 error (expired token) and trigger refresh
+        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+        if (wasAuthError) {
+          // Token refresh was triggered
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }

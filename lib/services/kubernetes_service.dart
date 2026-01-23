@@ -6,6 +6,7 @@ import 'package:watcher/watcher.dart';
 import '../exceptions/authentication_exception.dart';
 import '../exceptions/connection_exception.dart';
 import 'connection_error_manager.dart';
+import 'auth_refresh_manager.dart';
 
 /// Service class that handles common Kubernetes infrastructure operations
 /// Resource-specific operations are in separate service classes:
@@ -127,6 +128,13 @@ class KubernetesService {
         }
       } catch (e) {
         debugPrint('Error polling for namespace updates: $e');
+
+        // Check if this is a 401 error (expired token) and trigger refresh
+        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+        if (wasAuthError) {
+          // Token refresh was triggered
+          return;
+        }
 
         // Check if this is a connection error
         if (ConnectionErrorManager().checkAndHandleError(e)) {

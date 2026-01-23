@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:k8s/k8s.dart';
+import '../services/auth_refresh_manager.dart';
 
 /// Widget that displays streaming logs from a Kubernetes job container
 class LogsViewer extends StatefulWidget {
@@ -160,6 +161,21 @@ class _LogsViewerState extends State<LogsViewer> {
         },
       );
     } catch (e) {
+      debugPrint('Error starting logs: $e');
+
+      // Check if this is a 401 error (expired token) and trigger refresh
+      final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+      if (wasAuthError) {
+        // Token refresh was triggered, don't show error to user
+        // The logs will be retried when the client is refreshed
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
       if (mounted) {
         setState(() {
           _error = e.toString();

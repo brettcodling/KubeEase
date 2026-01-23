@@ -391,6 +391,14 @@ class PodService {
       }
     } catch (e) {
       debugPrint('Error fetching container env vars: $e');
+
+      // Check if this is a 401 error (expired token) and trigger refresh
+      final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+      if (wasAuthError) {
+        // Token refresh was triggered, the error will be retried automatically
+        return;
+      }
+
       controller.addError(e);
     }
   }
@@ -453,6 +461,13 @@ class PodService {
         }
       } catch (e) {
         debugPrint('Error polling for pod events: $e');
+
+        // Check if this is a 401 error (expired token) and trigger refresh
+        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+        if (wasAuthError) {
+          // Token refresh was triggered
+          return;
+        }
 
         // Check if this is a connection error
         if (ConnectionErrorManager().checkAndHandleError(e)) {
