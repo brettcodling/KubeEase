@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:k8s/k8s.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../services/pods/pod_service.dart';
+import '../services/pods/pod_metrics_service.dart';
 import '../services/session_manager.dart';
 import '../services/port_forward_manager.dart';
 import '../models/pod_event.dart';
+import '../models/pod_metrics.dart';
 
 /// Screen that displays detailed information about a Kubernetes Pod
 class PodDetailScreen extends StatefulWidget {
@@ -909,6 +912,12 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
   List<dynamic> _envVars = [];
   final Set<String> _visibleSecrets = {}; // Track which secret env vars are visible
 
+  // Metrics tracking
+  StreamSubscription<PodMetrics?>? _metricsSubscription;
+  final List<ContainerMetrics> _metricsHistory = [];
+  ContainerMetrics? _currentMetrics;
+  bool _isMetricsExpanded = false; // Collapsed by default
+
   @override
   void initState() {
     super.initState();
@@ -916,6 +925,7 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
     Future.delayed(const Duration(milliseconds: 350), () {
       if (mounted) {
         _startWatchingEnvVars();
+        _startWatchingMetrics();
       }
     });
   }
@@ -923,7 +933,34 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
   @override
   void dispose() {
     _envVarsSubscription?.cancel();
+    _metricsSubscription?.cancel();
     super.dispose();
+  }
+
+  void _startWatchingMetrics() {
+    _metricsSubscription = PodMetricsService.watchPodMetrics(
+      widget.kubernetesClient,
+      widget.namespace,
+      widget.podName,
+    ).listen((podMetrics) {
+      if (podMetrics != null && mounted) {
+        // Find metrics for this specific container
+        final containerMetrics = podMetrics.containers.firstWhere(
+          (c) => c.name == widget.container.name,
+          orElse: () => ContainerMetrics(name: widget.container.name ?? '', cpuMillicores: 0, memoryBytes: 0),
+        );
+
+        setState(() {
+          _currentMetrics = containerMetrics;
+          _metricsHistory.add(containerMetrics);
+
+          // Keep only last 7 data points (70 seconds of history at 10s intervals)
+          if (_metricsHistory.length > 7) {
+            _metricsHistory.removeAt(0);
+          }
+        });
+      }
+    });
   }
 
   void _startWatchingEnvVars() {
@@ -1033,13 +1070,21 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
             // Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPortsSection(ports),
-                    const SizedBox(height: 24),
-                    _buildEnvironmentVariablesSection(),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _buildPortsSection(ports),
+                    ),
+                    if (_currentMetrics != null) ...[
+                      _buildMetricsSection(),
+                      const SizedBox(height: 24),
+                    ],
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _buildEnvironmentVariablesSection(),
+                    ),
                   ],
                 ),
               ),
@@ -1530,6 +1575,325 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricsSection() {
+    // Get resource requests and limits
+    final resources = widget.container.resources;
+    final cpuRequest = resources?.requests?['cpu'] as String?;
+    final cpuLimit = resources?.limits?['cpu'] as String?;
+    final memoryRequest = resources?.requests?['memory'] as String?;
+    final memoryLimit = resources?.limits?['memory'] as String?;
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: _isMetricsExpanded,
+        onExpansionChanged: (expanded) {
+          setState(() {
+            _isMetricsExpanded = expanded;
+          });
+        },
+        leading: Icon(Icons.show_chart, size: 20, color: Theme.of(context).colorScheme.primary),
+        title: Text(
+          'Resource Usage',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        subtitle: _currentMetrics != null
+            ? Text(
+                'CPU: ${_currentMetrics!.cpuCores.toStringAsFixed(3)} cores  •  Memory: ${_currentMetrics!.memoryMB.toStringAsFixed(1)} MB',
+                style: const TextStyle(fontSize: 12),
+              )
+            : null,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // CPU Chart
+                _buildChartWithLimits(
+                  title: 'CPU Usage',
+                  icon: Icons.memory,
+                  color: Colors.blue,
+                  currentValue: _currentMetrics!.cpuCores,
+                  requestValue: cpuRequest != null ? _parseCpuToDouble(cpuRequest) : null,
+                  limitValue: cpuLimit != null ? _parseCpuToDouble(cpuLimit) : null,
+                  unit: 'cores',
+                  isCpu: true,
+                ),
+                const SizedBox(height: 24),
+                // Memory Chart
+                _buildChartWithLimits(
+                  title: 'Memory Usage',
+                  icon: Icons.storage,
+                  color: Colors.green,
+                  currentValue: _currentMetrics!.memoryMB,
+                  requestValue: memoryRequest != null ? _parseMemoryToMB(memoryRequest) : null,
+                  limitValue: memoryLimit != null ? _parseMemoryToMB(memoryLimit) : null,
+                  unit: 'MB',
+                  isCpu: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _parseCpuToDouble(String cpuStr) {
+    if (cpuStr.endsWith('m')) {
+      // Millicores (e.g., "250m")
+      final millicores = int.tryParse(cpuStr.substring(0, cpuStr.length - 1)) ?? 0;
+      return millicores / 1000.0;
+    } else {
+      // Cores (e.g., "1" or "0.5")
+      return double.tryParse(cpuStr) ?? 0;
+    }
+  }
+
+  double _parseMemoryToMB(String memoryStr) {
+    if (memoryStr.endsWith('Ki')) {
+      final value = int.tryParse(memoryStr.substring(0, memoryStr.length - 2)) ?? 0;
+      return value / 1024.0;
+    } else if (memoryStr.endsWith('Mi')) {
+      final value = int.tryParse(memoryStr.substring(0, memoryStr.length - 2)) ?? 0;
+      return value.toDouble();
+    } else if (memoryStr.endsWith('Gi')) {
+      final value = int.tryParse(memoryStr.substring(0, memoryStr.length - 2)) ?? 0;
+      return value * 1024.0;
+    } else {
+      // Assume bytes
+      final bytes = int.tryParse(memoryStr) ?? 0;
+      return bytes / (1024 * 1024);
+    }
+  }
+
+  Widget _buildChartWithLimits({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required double currentValue,
+    required double? requestValue,
+    required double? limitValue,
+    required String unit,
+    required bool isCpu,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Current value with request and limit
+        Row(
+          children: [
+            _buildMetricBadge('Actual', '${currentValue.toStringAsFixed(isCpu ? 3 : 1)} $unit', Colors.blue),
+            const SizedBox(width: 8),
+            _buildMetricBadge('Request', requestValue != null ? '${requestValue.toStringAsFixed(isCpu ? 3 : 1)} $unit' : 'Not set', Colors.orange),
+            const SizedBox(width: 8),
+            _buildMetricBadge('Limit', limitValue != null ? '${limitValue.toStringAsFixed(isCpu ? 3 : 1)} $unit' : 'Not set', Colors.red),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Chart
+        SizedBox(
+          height: 200,
+          child: _buildChart(
+            isCpu: isCpu,
+            requestValue: requestValue,
+            limitValue: limitValue,
+            color: color,
+            unit: unit,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricBadge(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label: ',
+            style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+          ),
+          Text(
+            value,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChart({
+    required bool isCpu,
+    required double? requestValue,
+    required double? limitValue,
+    required Color color,
+    required String unit,
+  }) {
+    if (_metricsHistory.isEmpty) {
+      return const Center(child: Text('No data'));
+    }
+
+    final spots = <FlSpot>[];
+    for (int i = 0; i < _metricsHistory.length; i++) {
+      final value = isCpu ? _metricsHistory[i].cpuCores : _metricsHistory[i].memoryMB;
+      spots.add(FlSpot(i.toDouble(), value));
+    }
+
+    final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    final minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+
+    // Adjust max to include limit if it exists
+    var effectiveMax = maxY;
+    if (limitValue != null && limitValue > effectiveMax) {
+      effectiveMax = limitValue;
+    }
+    if (requestValue != null && requestValue > effectiveMax) {
+      effectiveMax = requestValue;
+    }
+
+    // Calculate interval, ensuring it's never zero
+    final range = effectiveMax - (minY > 0 ? 0 : minY);
+    final horizontalInterval = range > 0 ? range / 4 : 1.0;
+
+    // Build horizontal lines for request and limit
+    final extraLines = <HorizontalLine>[];
+    if (requestValue != null) {
+      extraLines.add(HorizontalLine(
+        y: requestValue,
+        color: Colors.orange.withValues(alpha: 0.5),
+        strokeWidth: 2,
+        dashArray: [5, 5],
+        label: HorizontalLineLabel(
+          show: true,
+          alignment: Alignment.topRight,
+          padding: const EdgeInsets.only(right: 5, bottom: 5),
+          style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+          labelResolver: (line) => 'Request',
+        ),
+      ));
+    }
+    if (limitValue != null) {
+      extraLines.add(HorizontalLine(
+        y: limitValue,
+        color: Colors.red.withValues(alpha: 0.5),
+        strokeWidth: 2,
+        dashArray: [5, 5],
+        label: HorizontalLineLabel(
+          show: true,
+          alignment: Alignment.topRight,
+          padding: const EdgeInsets.only(right: 5, top: 5),
+          style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+          labelResolver: (line) => 'Limit',
+        ),
+      ));
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          horizontalInterval: horizontalInterval,
+          drawVerticalLine: false,
+        ),
+        extraLinesData: ExtraLinesData(horizontalLines: extraLines),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) {
+                // Only show 4 labels
+                final effectiveMin = minY > 0 ? 0 : minY;
+                final step = (effectiveMax * 1.1 - effectiveMin) / 3;
+
+                for (int i = 0; i <= 3; i++) {
+                  final targetValue = effectiveMin + (step * i);
+                  if ((value - targetValue).abs() < step * 0.01) {
+                    return Text(
+                      value.toStringAsFixed(isCpu ? 2 : 0),
+                      style: const TextStyle(fontSize: 10),
+                    );
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          bottomTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: true),
+        minX: 0,
+        maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1,
+        minY: minY > 0 ? 0 : minY,
+        maxY: effectiveMax * 1.1,
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (List<LineBarSpot> touchedSpots) {
+              return touchedSpots.map((LineBarSpot touchedSpot) {
+                final textStyle = TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                );
+                final children = <TextSpan>[TextSpan(text: '\nActual: ${touchedSpot.y.toStringAsFixed(isCpu ? 3 : 1)} $unit')];
+                if (requestValue != null) {
+                  children.add(TextSpan(text: '\nRequest: ${requestValue.toStringAsFixed(isCpu ? 3 : 1)} $unit'));
+                }
+                if (limitValue != null) {
+                  children.add(TextSpan(text: '\nLimit: ${limitValue.toStringAsFixed(isCpu ? 3 : 1)} $unit'));
+                }
+                return LineTooltipItem(
+                  '${((spots.length - touchedSpot.x - 1) * 10).toStringAsFixed(0)}s',
+                  textStyle,
+                  children: children,
+                );
+              }).toList();
+            },
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: color,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(show: false),
+          ),
         ],
       ),
     );

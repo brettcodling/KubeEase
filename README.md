@@ -12,6 +12,7 @@ A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase
 - **Real-time Updates** - Live streaming of resource states and events
 - **External Sync** - Automatically detects and syncs with kubectl context changes
 - **Automatic Token Refresh** - Seamlessly handles expired authentication tokens for cloud-managed clusters (GKE, EKS, AKS)
+- **Resource Metrics** - Real-time CPU and memory usage monitoring with historical charts
 
 ### 🖥️ Interactive Tools
 - **Container Terminals** - Open interactive bash/sh sessions directly to pod containers
@@ -84,6 +85,7 @@ flutter build linux  # or macos, windows
 ### Working with Pods
 
 - **View Details** - Click any pod to see detailed information, containers, events, and conditions
+- **Monitor Metrics** - View real-time CPU and memory usage with historical charts showing resource requests and limits
 - **Open Terminal** - Click the terminal icon to open an interactive shell in a container
 - **View Logs** - Click the logs icon to stream container logs in real-time
 - **Port Forward** - Click the forward icon next to any container port to forward it to localhost
@@ -121,6 +123,25 @@ flutter build linux  # or macos, windows
 - **View Active Forwards** - Active port forwards show a badge icon in the app bar
 - **Stop Forward** - Click the stop button (⏹) on an active forward, or use the dropdown menu
 - **Auto Cleanup** - All port forwards are automatically stopped when the app closes
+
+### Resource Metrics
+
+KubeEase provides real-time monitoring of container resource usage:
+
+- **Live Metrics** - CPU and memory usage updated every 10 seconds
+- **Historical Charts** - Visual graphs showing the last 70 seconds of resource usage
+- **Resource Limits** - Charts display configured requests and limits as reference lines
+- **Per-Container** - Metrics shown individually for each container in a pod
+- **Smart Tooltips** - Hover over data points to see exact values with properly aligned tooltips
+
+**Metrics Display:**
+- **CPU Usage** - Shown in cores (e.g., 0.250 cores = 250 millicores)
+- **Memory Usage** - Shown in MB
+- **Request Line** - Orange dashed line showing the configured resource request
+- **Limit Line** - Red dashed line showing the configured resource limit
+- **Actual Usage** - Blue line showing real-time resource consumption
+
+**Note:** Metrics require `kubectl top` to be functional on your cluster (metrics-server must be installed).
 
 ### Context Management
 
@@ -194,6 +215,7 @@ lib/
 - **window_manager** (0.4.2) - Desktop window management
 - **file_picker** (4.6.1) - Native file picker for upload/download
 - **watcher** (1.2.0) - File system monitoring for kubeconfig changes
+- **fl_chart** (1.1.1) - Beautiful charts for metrics visualization
 
 ### Contributing
 
@@ -223,10 +245,11 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Terminal input protection during initialization
 - [x] Persistent namespace preferences
 - [x] Search/filter in file picker
+- [x] Real-time resource metrics with historical charts
+- [x] Automatic authentication token refresh
 
 ### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
-- [ ] Metrics and resource usage graphs
 
 ## License
 
@@ -240,6 +263,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Pseudo-terminal: [pty](https://pub.dev/packages/pty)
 - File picker: [file_picker](https://pub.dev/packages/file_picker)
 - File watcher: [watcher](https://pub.dev/packages/watcher)
+- Charts: [fl_chart](https://pub.dev/packages/fl_chart)
 
 ## Support
 
