@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/kubernetes_service.dart';
 import '../services/port_forward_manager.dart';
 import '../services/connection_error_manager.dart';
+import '../services/auth_refresh_manager.dart';
 import '../services/preferences_service.dart';
 import '../widgets/context_drawer.dart';
 import '../widgets/namespace_drawer.dart';
@@ -50,6 +52,8 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     super.initState();
     // Set up retry callback for connection errors
     ConnectionErrorManager().setRetryCallback(_handleRetry);
+    // Set up auth refresh callback for token expiration
+    AuthRefreshManager().registerRefreshCallback(_refreshKubernetesClient);
     // Initialize the app when the widget is first created
     _initializeApp();
   }
@@ -59,6 +63,27 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     debugPrint('Retrying connection after error...');
     // Reinitialize the app
     _initializeApp();
+  }
+
+  /// Refreshes the Kubernetes client when authentication token expires
+  /// This is called by AuthRefreshManager when a 401 error is detected
+  Future<(Kubernetes, Kubeconfig)> _refreshKubernetesClient() async {
+    debugPrint('🔄 Refreshing Kubernetes client due to token expiration...');
+
+    // Reinitialize the Kubernetes client (this will fetch fresh tokens)
+    final (client, config) = await KubernetesService.initialize();
+
+    // Update the state with the new client
+    if (mounted) {
+      setState(() {
+        _kubernetesClient = client;
+        _kubeconfig = config;
+        _authError = null;
+      });
+    }
+
+    debugPrint('✅ Kubernetes client refreshed successfully');
+    return (client, config);
   }
 
   @override
@@ -152,8 +177,20 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
           _restoreRememberedNamespaces();
         }
       },
-      onError: (error) {
-        debugPrint('Error watching namespaces: $error');
+      onError: (error) async {
+        debugPrint('Error loading namespaces: $error');
+
+        // Check if this is a 401 error (expired token) and refresh if needed
+        final wasHandled = await AuthRefreshManager().checkAndRefreshIfNeeded(error);
+
+        if (wasHandled) {
+          // Token was refreshed, retry loading namespaces
+          debugPrint('🔄 Retrying namespace load after token refresh...');
+          _loadNamespaces();
+          return;
+        }
+
+        // Not a 401 error, handle normally
         if (mounted) {
           setState(() {
             _isLoadingNamespaces = false;
@@ -378,6 +415,67 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // DEBUG: Menu with debug options (only in debug mode)
+          if (kDebugMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.bug_report, color: Colors.orange),
+              tooltip: 'Debug Menu',
+              itemBuilder: (context) {
+                return [
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text(
+                      'Debug Options',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                    value: 'simulate_401',
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_clock, size: 18),
+                        SizedBox(width: 8),
+                        Text('Simulate 401 Token Expiration'),
+                      ],
+                    ),
+                  ),
+                  // Add more debug options here in the future
+                  // const PopupMenuItem<String>(
+                  //   value: 'another_debug_option',
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.debug, size: 18),
+                  //       SizedBox(width: 8),
+                  //       Text('Another Debug Option'),
+                  //     ],
+                  //   ),
+                  // ),
+                ];
+              },
+              onSelected: (value) async {
+                switch (value) {
+                  case 'simulate_401':
+                    debugPrint('🧪 User triggered token expiration simulation');
+                    await AuthRefreshManager().simulateTokenExpiration();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🧪 Simulated 401 error - check console for refresh logs'),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                    break;
+                  // Add more cases here for future debug options
+                  // case 'another_debug_option':
+                  //   // Handle another debug option
+                  //   break;
+                }
+              },
+            ),
           // Port forward notification icon
           ListenableBuilder(
             listenable: PortForwardManager(),
@@ -386,9 +484,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
               if (sessions.isEmpty) {
                 return const SizedBox.shrink();
               }
-              return Row(
-                children: [
-                  PopupMenuButton<String>(
+              return PopupMenuButton<String>(
                     icon: Badge(
                       label: Text('${sessions.length}'),
                       child: const Icon(Icons.forward),
@@ -463,10 +559,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
                         PortForwardManager().stopPortForward(value);
                       }
                     },
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              );
+                  );
             },
           ),
         ],
@@ -603,16 +696,6 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
               ),
-              if (_availableContexts.length > 1)
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    // Open context drawer to allow switching
-                    Scaffold.of(context).openDrawer();
-                  },
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('Switch Context'),
-                ),
             ],
           ),
         );

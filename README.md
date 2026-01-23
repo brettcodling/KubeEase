@@ -11,6 +11,7 @@ A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase
 - **Resource Management** - View and manage Pods, Deployments, Secrets, and CronJobs
 - **Real-time Updates** - Live streaming of resource states and events
 - **External Sync** - Automatically detects and syncs with kubectl context changes
+- **Automatic Token Refresh** - Seamlessly handles expired authentication tokens for cloud-managed clusters (GKE, EKS, AKS)
 
 ### 🖥️ Interactive Tools
 - **Container Terminals** - Open interactive bash/sh sessions directly to pod containers
@@ -33,6 +34,7 @@ A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase
 - **Selectable Text** - Copy pod names, IPs, labels, and other details easily
 - **Visual Indicators** - Color-coded status badges and health indicators
 - **Input Protection** - Terminal blocks input until fully initialized to prevent errors
+- **Debug Menu** - Built-in debug tools for testing and troubleshooting (debug builds only)
 
 ## Screenshots
 
@@ -125,6 +127,32 @@ flutter build linux  # or macos, windows
 - **Auto-Sync** - KubeEase automatically detects when you change contexts via kubectl
 - **Namespace Memory** - Your namespace selections are remembered per context
 - **Seamless Switching** - Switch contexts without losing your workflow preferences
+
+### Authentication & Token Management
+
+KubeEase automatically handles authentication token expiration for cloud-managed Kubernetes clusters:
+
+- **Automatic Refresh** - Detects expired tokens (401 errors) and automatically refreshes credentials
+- **Seamless Operation** - No user intervention required when tokens expire
+- **Cloud Provider Support** - Works with GKE, EKS, AKS, and other cloud providers
+- **Long-Running Sessions** - Run the app indefinitely without authentication interruptions
+
+**How it works:**
+1. Cloud providers (GKE, EKS, AKS) use short-lived authentication tokens (typically 1 hour)
+2. When a token expires, KubeEase detects the 401 error automatically
+3. The app reinitializes the Kubernetes client to fetch fresh tokens
+4. Failed operations are automatically retried with the new credentials
+5. You continue working without any interruption
+
+### Debug Menu (Development Only)
+
+When running in debug mode (`flutter run`), KubeEase provides a debug menu for testing and troubleshooting:
+
+- **Access** - Click the orange bug icon (🐛) in the app bar
+- **Simulate 401 Error** - Test the automatic token refresh mechanism
+- **Future Options** - Extensible menu for additional debug features
+
+**Note:** The debug menu is automatically removed from release builds and will not appear in production installations.
 
 ## Configuration
 

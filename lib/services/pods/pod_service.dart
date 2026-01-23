@@ -4,6 +4,7 @@ import 'package:k8s/k8s.dart';
 import '../../models/pod_info.dart';
 import '../../models/pod_event.dart';
 import '../connection_error_manager.dart';
+import '../auth_refresh_manager.dart';
 
 /// Service class that handles all Pod-related Kubernetes API interactions
 class PodService {
@@ -152,7 +153,15 @@ class PodService {
           }
         }
       } catch (e) {
-        debugPrint('Error polling for pod updates: $e');
+        debugPrint('Error fetching pods: $e');
+
+        // Check if this is a 401 error (expired token) and trigger refresh
+        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
+        if (wasAuthError) {
+          // Token refresh was triggered, the error will be retried automatically
+          // after the client is refreshed in cluster_view_screen
+          return;
+        }
 
         // Check if this is a connection error
         if (ConnectionErrorManager().checkAndHandleError(e)) {

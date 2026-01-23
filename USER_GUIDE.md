@@ -15,8 +15,10 @@ Welcome to KubeEase! This comprehensive guide will help you get the most out of 
 9. [Log Viewing](#log-viewing)
 10. [Port Forwarding](#port-forwarding)
 11. [Session Management](#session-management)
-12. [Tips & Tricks](#tips--tricks)
-13. [Troubleshooting](#troubleshooting)
+12. [Authentication & Token Management](#authentication--token-management)
+13. [Debug Menu](#debug-menu)
+14. [Tips & Tricks](#tips--tricks)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -51,6 +53,7 @@ The KubeEase interface consists of several key areas:
 - **Ship Helm Icon** - Application logo and branding
 - **Context Selector** - Dropdown to switch between Kubernetes contexts
 - **Namespace Filter Button** - Opens the namespace selection drawer
+- **Debug Menu** - Orange bug icon (🐛) for debug options (debug builds only)
 - **Port Forward Badge** - Shows count of active port forwards (when applicable)
 
 #### 2. **Left Sidebar (Resource Menu)**
@@ -510,6 +513,132 @@ Each minimized session shows:
 
 ---
 
+## Authentication & Token Management
+
+KubeEase provides automatic authentication token management for cloud-managed Kubernetes clusters, ensuring uninterrupted access even during long-running sessions.
+
+### How Authentication Works
+
+KubeEase uses your existing kubeconfig file (`~/.kube/config`) for authentication:
+- **Local Clusters** - Uses certificates or static tokens
+- **Cloud Clusters** - Uses authentication plugins (gke-gcloud-auth-plugin, aws-iam-authenticator, Azure CLI)
+
+### Automatic Token Refresh
+
+Cloud providers (GKE, EKS, AKS) use short-lived authentication tokens that typically expire after 1 hour. KubeEase automatically handles token expiration:
+
+#### How It Works
+
+1. **Normal Operation** - App uses valid authentication tokens from your kubeconfig
+2. **Token Expiration** - After ~1 hour, cloud provider tokens expire
+3. **Automatic Detection** - KubeEase detects 401 Unauthorized errors from the Kubernetes API
+4. **Credential Refresh** - App automatically reinitializes the Kubernetes client
+5. **Token Regeneration** - Authentication plugin generates fresh tokens
+6. **Seamless Retry** - Failed operations automatically retry with new credentials
+7. **Continued Operation** - You continue working without interruption
+
+#### What You'll See
+
+When automatic token refresh occurs, you may notice:
+- Brief pause in resource updates (1-2 seconds)
+- Console debug messages (if running in debug mode):
+  ```
+  🔑 Authentication token expired, refreshing credentials...
+  🔄 Refreshing Kubernetes client due to token expiration...
+  ✅ Kubernetes client refreshed successfully
+  ```
+- No error dialogs or user prompts
+- Automatic resumption of normal operation
+
+#### Supported Cloud Providers
+
+- **Google Kubernetes Engine (GKE)** - Uses gke-gcloud-auth-plugin
+- **Amazon Elastic Kubernetes Service (EKS)** - Uses aws-iam-authenticator
+- **Azure Kubernetes Service (AKS)** - Uses Azure CLI authentication
+- **Other Cloud Providers** - Any provider using OAuth2 or similar token-based authentication
+
+### Long-Running Sessions
+
+With automatic token refresh, you can:
+- Run KubeEase indefinitely without authentication errors
+- Leave the app open overnight or over weekends
+- Maintain active terminal and log sessions for extended periods
+- Avoid manual re-authentication or app restarts
+
+### Troubleshooting Authentication
+
+If you experience persistent authentication errors:
+
+1. **Verify kubectl access** - Ensure kubectl works: `kubectl cluster-info`
+2. **Check authentication plugin** - Verify the required plugin is installed:
+   - GKE: `gke-gcloud-auth-plugin --version`
+   - EKS: `aws-iam-authenticator version`
+   - AKS: `az --version`
+3. **Re-authenticate** - Refresh your cloud credentials:
+   - GKE: `gcloud auth application-default login`
+   - EKS: `aws configure`
+   - AKS: `az login`
+4. **Check RBAC permissions** - Ensure your user has proper cluster access
+5. **Review kubeconfig** - Verify your kubeconfig is properly formatted
+
+---
+
+## Debug Menu
+
+KubeEase includes a built-in debug menu for testing and troubleshooting during development.
+
+### Accessing the Debug Menu
+
+**Note**: The debug menu is **only available in debug builds** and is automatically removed from release builds.
+
+1. Run KubeEase in debug mode: `flutter run -d linux`
+2. Look for the **orange bug icon** (🐛) in the top-right app bar
+3. Click the icon to open the debug menu
+
+### Available Debug Options
+
+#### Simulate 401 Token Expiration
+
+Tests the automatic token refresh mechanism:
+
+1. Click the debug menu (🐛 icon)
+2. Select **"Simulate 401 Token Expiration"**
+3. Watch the console for debug output:
+   ```
+   🧪 User triggered token expiration simulation
+   🧪 DEBUG: Simulating 401 token expiration error...
+   🔑 Authentication token expired, refreshing credentials...
+   🔄 Refreshing Kubernetes client due to token expiration...
+   ✅ Kubernetes client refreshed successfully
+   ```
+4. A snackbar confirms the simulation
+5. App continues operating normally
+
+**Use Cases**:
+- Verify token refresh works before deploying to production
+- Test error handling without waiting for real token expiration
+- Demonstrate automatic recovery to stakeholders
+- Debug authentication issues
+
+### Debug Menu in Production
+
+The debug menu is **completely removed** from production builds:
+- Release builds (`flutter build linux --release`)
+- Packaged installers (.deb, .rpm, .dmg, .exe)
+- Distributed applications
+
+This ensures:
+- Clean user interface for end users
+- No confusing debug options in production
+- Zero performance overhead from debug code
+- Professional appearance
+
+### Adding Custom Debug Options
+
+Developers can easily add new debug options to the menu. See the code in `lib/screens/cluster_view_screen.dart` for examples of how to add additional debug features.
+
+---
+
 ## Tips & Tricks
 
 ### Keyboard Shortcuts
@@ -589,6 +718,13 @@ When a pod has multiple containers:
 - Check that your credentials haven't expired
 - Ensure you have proper RBAC permissions
 - Try switching to a different context
+
+**Note on Token Expiration**: KubeEase automatically handles expired authentication tokens for cloud-managed clusters (GKE, EKS, AKS). If you see brief authentication errors that resolve themselves, this is the automatic token refresh working as intended. You should see debug messages in the console like:
+```
+🔑 Authentication token expired, refreshing credentials...
+🔄 Refreshing Kubernetes client due to token expiration...
+✅ Kubernetes client refreshed successfully
+```
 
 #### Terminal Won't Accept Input
 
@@ -824,6 +960,14 @@ You can switch between contexts (clusters) easily, but you can only view one clu
 ### Can I customize the theme or appearance?
 
 Currently, KubeEase uses a dark theme optimized for extended use. Theme customization is on the roadmap for future releases.
+
+### How long can I run KubeEase without restarting?
+
+Indefinitely! KubeEase includes automatic token refresh for cloud-managed clusters (GKE, EKS, AKS), so authentication tokens are automatically renewed when they expire (typically every hour). You can leave the app running for days or weeks without authentication issues.
+
+### Why don't I see the debug menu?
+
+The debug menu (orange bug icon) is only available when running KubeEase in debug mode (`flutter run`). It is automatically removed from release builds and production installations to provide a clean user interface.
 
 ---
 
