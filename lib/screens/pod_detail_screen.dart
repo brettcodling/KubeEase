@@ -291,6 +291,7 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
               kubernetesClient: widget.kubernetesClient,
               namespace: widget.namespace,
               podName: widget.podName,
+              podDetails: _podDetails,
             ),
           ),
         );
@@ -355,11 +356,19 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
           const SizedBox(height: 16),
           _buildContainersCard(),
           const SizedBox(height: 16),
-          _buildEventsCard(),
-          const SizedBox(height: 16),
           _buildLabelsCard(),
           const SizedBox(height: 16),
+          if (_podDetails.metadata?.annotations != null && _podDetails.metadata!.annotations!.isNotEmpty) ...[
+            _buildAnnotationsCard(),
+            const SizedBox(height: 16),
+          ],
+          if (_podDetails.spec?.volumes != null && _podDetails.spec!.volumes!.isNotEmpty) ...[
+            _buildVolumesCard(),
+            const SizedBox(height: 16),
+          ],
           _buildConditionsCard(),
+          const SizedBox(height: 16),
+          _buildEventsCard(),
         ],
       ),
     );
@@ -511,6 +520,184 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnnotationsCard() {
+    final annotations = _podDetails.metadata?.annotations;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.notes, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Annotations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (annotations == null || annotations.isEmpty)
+              Text('No annotations', style: TextStyle(color: Colors.grey[400], fontSize: 13))
+            else
+              ...annotations.entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.arrow_right, size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: SelectableText(
+                          entry.key,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[400]),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: SelectableText(
+                          entry.value.toString(),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumesCard() {
+    final volumes = _podDetails.spec?.volumes ?? [];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.storage, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Volumes',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${volumes.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...volumes.map((volume) => _buildVolumeItem(volume)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeItem(dynamic volume) {
+    final name = volume.name ?? 'Unknown';
+    String volumeType = 'Unknown';
+    String details = '';
+
+    // Determine volume type and details
+    if (volume.configMap != null) {
+      volumeType = 'ConfigMap';
+      details = volume.configMap.name ?? '';
+    } else if (volume.secret != null) {
+      volumeType = 'Secret';
+      details = volume.secret.secretName ?? '';
+    } else if (volume.persistentVolumeClaim != null) {
+      volumeType = 'PVC';
+      details = volume.persistentVolumeClaim.claimName ?? '';
+    } else if (volume.emptyDir != null) {
+      volumeType = 'EmptyDir';
+      details = volume.emptyDir.medium != null ? 'Medium: ${volume.emptyDir.medium}' : 'Default';
+    } else if (volume.hostPath != null) {
+      volumeType = 'HostPath';
+      details = volume.hostPath.path ?? '';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.folder_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  volumeType,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (details.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: SelectableText(
+                details,
+                style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -760,12 +947,20 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${_events.length} events',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_events.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -895,12 +1090,14 @@ class _ContainerDrawer extends StatefulWidget {
   final Kubernetes kubernetesClient;
   final String namespace;
   final String podName;
+  final dynamic podDetails;
 
   const _ContainerDrawer({
     required this.container,
     required this.kubernetesClient,
     required this.namespace,
     required this.podName,
+    required this.podDetails,
   });
 
   @override
@@ -1012,9 +1209,25 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
     );
   }
 
+  /// Check if the container is currently running
+  bool _isContainerRunning() {
+    final containerStatuses = widget.podDetails?.status?.containerStatuses ?? [];
+    final containerName = widget.container.name;
+
+    for (var status in containerStatuses) {
+      if (status.name == containerName) {
+        // Check if the container state is running
+        return status.state?.running != null;
+      }
+    }
+
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final ports = widget.container.ports ?? [];
+    final isRunning = _isContainerRunning();
 
     return SizedBox(
       width: 800,
@@ -1052,8 +1265,8 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.terminal),
-                    onPressed: _openContainerTerminal,
-                    tooltip: 'Open Terminal',
+                    onPressed: isRunning ? _openContainerTerminal : null,
+                    tooltip: isRunning ? 'Open Terminal' : 'Container not running',
                   ),
                   IconButton(
                     icon: const Icon(Icons.article_outlined),

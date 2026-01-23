@@ -142,6 +142,18 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
           const SizedBox(height: 16),
           _buildLabelsCard(),
           const SizedBox(height: 16),
+          if (_deploymentDetails.metadata?.annotations != null && _deploymentDetails.metadata!.annotations!.isNotEmpty) ...[
+            _buildAnnotationsCard(),
+            const SizedBox(height: 16),
+          ],
+          if (_deploymentDetails.spec?.selector?.matchLabels != null) ...[
+            _buildSelectorCard(),
+            const SizedBox(height: 16),
+          ],
+          if (_deploymentDetails.spec?.strategy != null) ...[
+            _buildStrategyCard(),
+            const SizedBox(height: 16),
+          ],
           _buildConditionsCard(),
         ],
       ),
@@ -431,31 +443,168 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
               ],
             ),
             const Divider(height: 24),
-            ...labels.entries.map((entry) => Padding(
+            if (labels.isEmpty)
+              Text('No labels', style: TextStyle(color: Colors.grey[400], fontSize: 13))
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: labels.entries.map<Widget>((entry) {
+                  return Chip(
+                    label: Text(
+                      '${entry.key}: ${entry.value}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnnotationsCard() {
+    final annotations = _deploymentDetails.metadata?.annotations;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.notes, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Annotations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (annotations == null || annotations.isEmpty)
+              Text('No annotations', style: TextStyle(color: Colors.grey[400], fontSize: 13))
+            else
+              ...annotations.entries.map((entry) {
+                return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 150,
-                        child: Text(
+                      Icon(Icons.arrow_right, size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: SelectableText(
                           entry.key,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[400]),
                         ),
                       ),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
+                        flex: 3,
+                        child: SelectableText(
                           entry.value.toString(),
-                          style: const TextStyle(fontSize: 14),
+                          style: const TextStyle(fontSize: 13),
                         ),
                       ),
                     ],
                   ),
-                )),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectorCard() {
+    final matchLabels = _deploymentDetails.spec?.selector?.matchLabels ?? {};
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.filter_alt, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Selector',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (matchLabels.isEmpty)
+              Text('No selector labels', style: TextStyle(color: Colors.grey[400], fontSize: 13))
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: matchLabels.entries.map<Widget>((entry) {
+                  return Chip(
+                    label: Text(
+                      '${entry.key}: ${entry.value}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStrategyCard() {
+    final strategy = _deploymentDetails.spec?.strategy;
+    final strategyType = strategy?.type ?? 'Unknown';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.update, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Deployment Strategy',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            _buildInfoRow(Icons.sync, 'Type', strategyType),
+            if (strategyType == 'RollingUpdate' && strategy?.rollingUpdate != null) ...[
+              _buildInfoRow(
+                Icons.arrow_upward,
+                'Max Surge',
+                strategy!.rollingUpdate!.maxSurge?.toString() ?? 'N/A',
+              ),
+              _buildInfoRow(
+                Icons.arrow_downward,
+                'Max Unavailable',
+                strategy.rollingUpdate!.maxUnavailable?.toString() ?? 'N/A',
+              ),
+            ],
           ],
         ),
       ),

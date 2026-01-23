@@ -10,15 +10,16 @@ Welcome to KubeEase! This comprehensive guide will help you get the most out of 
 4. [Managing Namespaces](#managing-namespaces)
 5. [Viewing Resources](#viewing-resources)
 6. [Pod Management](#pod-management)
-7. [Terminal Sessions](#terminal-sessions)
-8. [File Transfer](#file-transfer)
-9. [Log Viewing](#log-viewing)
-10. [Port Forwarding](#port-forwarding)
-11. [Session Management](#session-management)
-12. [Authentication & Token Management](#authentication--token-management)
-13. [Debug Menu](#debug-menu)
-14. [Tips & Tricks](#tips--tricks)
-15. [Troubleshooting](#troubleshooting)
+7. [Custom Resources](#custom-resources)
+8. [Terminal Sessions](#terminal-sessions)
+9. [File Transfer](#file-transfer)
+10. [Log Viewing](#log-viewing)
+11. [Port Forwarding](#port-forwarding)
+12. [Session Management](#session-management)
+13. [Authentication & Token Management](#authentication--token-management)
+14. [Debug Menu](#debug-menu)
+15. [Tips & Tricks](#tips--tricks)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -61,6 +62,7 @@ The KubeEase interface consists of several key areas:
 - **Deployments** - View deployment information
 - **Secrets** - Browse Kubernetes secrets
 - **CronJobs** - Manage scheduled jobs
+- **Custom Resources** - View and manage custom resource definitions (CRDs)
 
 #### 3. **Main Content Area**
 - Displays the list of resources based on your selection
@@ -171,6 +173,13 @@ KubeEase supports viewing the following resource types:
 - See schedule and last run time
 - Monitor job status
 
+#### Custom Resources
+- View any Custom Resource Definitions (CRDs) installed in your cluster
+- Organized by API group for easy navigation
+- Support for both namespaced and cluster-scoped resources
+- Detailed view of spec and status for each resource
+- See the [Custom Resources](#custom-resources) section for more details
+
 ### Resource List Features
 
 Each resource card displays:
@@ -224,6 +233,195 @@ From the pod detail screen, you can:
 - View container logs
 - Forward ports to localhost
 - Copy pod information
+
+---
+
+## Custom Resources
+
+Custom Resources are extensions of the Kubernetes API that allow you to store and retrieve structured data. They are defined by Custom Resource Definitions (CRDs) and enable you to extend Kubernetes with your own resource types.
+
+### What are Custom Resources?
+
+Custom Resources allow you to:
+- Extend Kubernetes with domain-specific objects
+- Store configuration for third-party applications
+- Implement custom controllers and operators
+- Manage application-specific resources
+
+Common examples include:
+- **ExternalSecrets** - Sync secrets from external secret managers
+- **ClusterSecretStore** - Configure external secret providers
+- **Certificates** - Manage TLS certificates with cert-manager
+- **ServiceMonitors** - Configure Prometheus monitoring
+- **VirtualServices** - Define Istio routing rules
+
+### Viewing Custom Resources
+
+#### Accessing the Custom Resources Menu
+
+1. Look for **Custom Resources** in the left sidebar
+2. Click to expand the custom resources section
+3. You'll see resources grouped by API group
+
+#### Understanding the Menu Structure
+
+Custom resources are organized hierarchically:
+- **API Groups** - Top-level groupings (e.g., `external-secrets.io`, `cert-manager.io`)
+- **Resource Types** - Specific CRDs within each group (e.g., `ExternalSecret`, `ClusterSecretStore`)
+- **Resource Count** - Number of instances shown in parentheses
+
+Example structure:
+```
+Custom Resources
+  └─ external-secrets.io
+      ├─ ExternalSecret (5)
+      └─ ClusterSecretStore (2)
+  └─ cert-manager.io
+      ├─ Certificate (3)
+      └─ Issuer (1)
+```
+
+#### Selecting a Resource Type
+
+1. Expand an API group by clicking on it
+2. Click on a specific resource type (e.g., `ExternalSecret`)
+3. The main content area shows all instances of that resource type
+4. Resources are filtered by your selected namespaces
+
+### Custom Resource List View
+
+When viewing custom resources, each card displays:
+- **Name** - The resource identifier
+- **Namespace** - Which namespace it belongs to (for namespaced resources)
+- **Kind** - The resource type (e.g., `ExternalSecret`)
+- **Age** - How long the resource has existed
+
+#### Cluster-Scoped vs Namespaced Resources
+
+**Namespaced Resources**:
+- Exist within a specific namespace
+- Filtered by your namespace selection
+- Examples: `ExternalSecret`, `Certificate`
+
+**Cluster-Scoped Resources**:
+- Exist at the cluster level (no namespace)
+- Always visible regardless of namespace selection
+- Examples: `ClusterSecretStore`, `ClusterIssuer`
+- Indicated by "Scope: Cluster" in the detail view
+
+### Viewing Custom Resource Details
+
+1. Click on any custom resource card in the list
+2. The detail screen shows comprehensive information organized into cards:
+
+#### Basic Information Card
+- **Name** - Resource identifier
+- **Namespace** - Resource namespace (if namespaced)
+- **Kind** - Resource type
+- **API Version** - API group and version
+- **Scope** - Namespaced or Cluster
+- **Created** - Creation timestamp
+- **UID** - Unique identifier
+
+#### Labels Card
+- Displays all labels as chips
+- Shows "No labels" if none exist
+- Labels are key-value pairs used for organization and selection
+
+#### Annotations Card
+- Shows all annotations as key-value pairs
+- Annotations provide additional metadata
+- Each annotation displayed with an arrow icon
+- Values are selectable for easy copying
+
+#### Spec Card
+- Shows the resource specification (desired state)
+- Nested objects displayed with chevron icons
+- Lists shown with bullet points
+- Proper indentation for readability
+- All values are selectable
+
+#### Status Card
+- Shows the resource status (current state)
+- Same nested display as Spec card
+- Only shown if status data exists
+- Useful for checking resource health
+
+### Managing Custom Resources
+
+#### Deleting a Custom Resource
+
+1. Navigate to the custom resource detail screen
+2. Click the **delete icon** (trash can) in the top app bar
+3. Confirm the deletion in the dialog
+4. Resource is deleted immediately
+5. You're returned to the resource list
+
+**Warning**: Deletion is permanent and cannot be undone. Make sure you're deleting the correct resource.
+
+### Empty Resource Lists
+
+If you see "No [resource type] resources found":
+- This is normal if there are genuinely no resources of that type
+- Check your namespace selection - you may need to select additional namespaces
+- For cluster-scoped resources, namespace selection doesn't affect visibility
+- The list updates automatically when resources are created
+
+### Real-time Updates
+
+Custom resource lists update automatically:
+- Polls for changes every 5 seconds
+- New resources appear automatically
+- Deleted resources are removed from the list
+- Status changes are reflected in real-time
+- Updates pause when viewing detail screens (resume on return)
+
+### Common Custom Resource Types
+
+#### ExternalSecret (external-secrets.io)
+- Syncs secrets from external secret managers (AWS Secrets Manager, HashiCorp Vault, etc.)
+- Namespaced resource
+- Check Status card to verify sync status
+
+#### ClusterSecretStore (external-secrets.io)
+- Configures connection to external secret providers
+- Cluster-scoped resource
+- Referenced by ExternalSecret resources
+
+#### Certificate (cert-manager.io)
+- Manages TLS certificates
+- Namespaced resource
+- Automatically renews certificates before expiration
+
+#### Issuer / ClusterIssuer (cert-manager.io)
+- Configures certificate authorities
+- Issuer is namespaced, ClusterIssuer is cluster-scoped
+- Referenced by Certificate resources
+
+### Troubleshooting Custom Resources
+
+#### "Failed to fetch resource" Error
+
+If you see this error when clicking on a resource:
+- The resource may have been deleted
+- You may not have permissions to view the resource
+- Check that kubectl can access the resource: `kubectl get <resource-type> <name> -n <namespace>`
+
+#### Resources Not Appearing
+
+If custom resources don't appear in the list:
+- Verify the CRD is installed: `kubectl get crds`
+- Check your namespace selection
+- Ensure you have RBAC permissions to list the resource type
+- For cluster-scoped resources, namespace selection doesn't matter
+
+#### Loading State Persists
+
+If the list stays in "Loading..." state:
+- This should resolve automatically after the first fetch
+- If it persists, check your cluster connectivity
+- Verify kubectl can list the resources
+- Try selecting a different resource type and back
 
 ---
 
@@ -655,6 +853,12 @@ Developers can easily add new debug options to the menu. See the code in `lib/sc
 2. Use the search feature to quickly find specific namespaces
 3. Context switching remembers your namespace selections
 
+#### Working with Custom Resources
+1. Expand API groups to see all available custom resource types
+2. Cluster-scoped resources are visible regardless of namespace selection
+3. Use the detail view to inspect spec and status for troubleshooting
+4. Check the Status card to verify resource health and sync status
+
 #### Quick Pod Access
 1. Keep frequently accessed pods in a dedicated namespace
 2. Use the search/filter to quickly locate pods
@@ -989,12 +1193,13 @@ The debug menu (orange bug icon) is only available when running KubeEase in debu
 
 ### Supported Resource Types
 
-| Resource Type | View | Details | Terminal | Logs | Port Forward |
-|--------------|------|---------|----------|------|--------------|
-| Pods | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Deployments | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Secrets | ✅ | ✅ | ❌ | ❌ | ❌ |
-| CronJobs | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Resource Type | View | Details | Terminal | Logs | Port Forward | Delete |
+|--------------|------|---------|----------|------|--------------|--------|
+| Pods | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Deployments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Secrets | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| CronJobs | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Custom Resources | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
 
 ### Keyboard Shortcuts Reference
 

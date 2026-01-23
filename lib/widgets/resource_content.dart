@@ -6,14 +6,17 @@ import 'pods_list.dart';
 import 'deployments_list.dart';
 import 'cron_jobs_list.dart';
 import 'secrets_list.dart';
+import 'custom_resources_list.dart';
 import '../models/pod_info.dart';
 import '../models/deployment_info.dart';
 import '../models/cron_job_info.dart';
 import '../models/secret_info.dart';
+import '../models/custom_resource_info.dart';
 import '../services/pods/pod_service.dart';
 import '../services/deployments/deployment_service.dart';
 import '../services/cron_jobs/cron_job_service.dart';
 import '../services/secrets/secret_service.dart';
+import '../services/custom_resources/custom_resource_service.dart';
 
 /// Main content area widget that displays the selected resource type
 class ResourceContent extends StatefulWidget {
@@ -22,11 +25,13 @@ class ResourceContent extends StatefulWidget {
     required this.resourceType,
     required this.selectedNamespaces,
     required this.kubernetesClient,
+    this.selectedCustomResource,
   });
 
   final ResourceType resourceType;
   final Set<String> selectedNamespaces;
   final Kubernetes kubernetesClient;
+  final CustomResourceDefinitionInfo? selectedCustomResource;
 
   @override
   State<ResourceContent> createState() => _ResourceContentState();
@@ -96,6 +101,10 @@ class _ResourceContentState extends State<ResourceContent> {
   StreamSubscription<List<SecretInfo>>? _secretStreamSubscription;
   SecretSortField _secretSortField = SecretSortField.name;
 
+  // Custom Resources state
+  List<CustomResourceInfo> _customResources = [];
+  StreamSubscription<List<CustomResourceInfo>>? _customResourceStreamSubscription;
+
   // Common state
   bool _isLoading = false;
   SortDirection _sortDirection = SortDirection.ascending;
@@ -111,10 +120,11 @@ class _ResourceContentState extends State<ResourceContent> {
   @override
   void didUpdateWidget(ResourceContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Restart watching if resource type, namespaces, or kubernetes client changed
+    // Restart watching if resource type, namespaces, kubernetes client, or custom resource changed
     if (oldWidget.resourceType != widget.resourceType ||
         oldWidget.selectedNamespaces != widget.selectedNamespaces ||
-        oldWidget.kubernetesClient != widget.kubernetesClient) {
+        oldWidget.kubernetesClient != widget.kubernetesClient ||
+        oldWidget.selectedCustomResource != widget.selectedCustomResource) {
       // Cancel all existing subscriptions before starting new ones
       _cancelAllSubscriptions();
       // Clear search when switching resource types, namespaces, or contexts
@@ -143,6 +153,8 @@ class _ResourceContentState extends State<ResourceContent> {
     _cronJobStreamSubscription = null;
     _secretStreamSubscription?.cancel();
     _secretStreamSubscription = null;
+    _customResourceStreamSubscription?.cancel();
+    _customResourceStreamSubscription = null;
   }
 
   /// Pauses watching resources (called when navigating to detail screen)
@@ -169,6 +181,9 @@ class _ResourceContentState extends State<ResourceContent> {
         break;
       case ResourceType.secrets:
         _watchSecrets();
+        break;
+      case ResourceType.customResource:
+        _watchCustomResources();
         break;
     }
   }
@@ -316,6 +331,56 @@ class _ResourceContentState extends State<ResourceContent> {
       },
       onError: (error) {
         debugPrint('Error watching secrets: $error');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      },
+    );
+  }
+
+  /// Watches custom resources from Kubernetes using a stream
+  void _watchCustomResources() {
+    // Cancel any existing subscription
+    _customResourceStreamSubscription?.cancel();
+
+    // Check if a custom resource is selected
+    if (widget.selectedCustomResource == null) {
+      if (mounted) {
+        setState(() {
+          _customResources = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    // Set loading state
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _customResources = [];
+      });
+    }
+
+    // Subscribe to the custom resource watch stream
+    _customResourceStreamSubscription = CustomResourceService.watchCustomResources(
+      widget.kubernetesClient,
+      widget.selectedCustomResource!,
+      widget.selectedNamespaces,
+    ).listen(
+      (resources) {
+        // Update the custom resource list when new data arrives
+        if (mounted) {
+          setState(() {
+            _customResources = resources;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        debugPrint('Error watching custom resources: $error');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -588,7 +653,30 @@ class _ResourceContentState extends State<ResourceContent> {
           onPauseWatching: _pauseWatching,
           onResumeWatching: _resumeWatching,
         );
+      case ResourceType.customResource:
+        // Use filtered custom resources
+        final filteredResources = _getFilteredCustomResources();
+        return CustomResourcesList(
+          resources: filteredResources,
+          isLoading: _isLoading,
+          crd: widget.selectedCustomResource,
+          kubernetesClient: widget.kubernetesClient,
+          onPauseWatching: _pauseWatching,
+          onResumeWatching: _resumeWatching,
+        );
     }
+  }
+
+  /// Filters the custom resource list based on search query
+  List<CustomResourceInfo> _getFilteredCustomResources() {
+    if (_searchQuery.isEmpty) return _customResources;
+
+    final query = _searchQuery.toLowerCase();
+    return _customResources.where((resource) {
+      return resource.name.toLowerCase().contains(query) ||
+          resource.namespace.toLowerCase().contains(query) ||
+          resource.kind.toLowerCase().contains(query);
+    }).toList();
   }
 
   /// Builds the search box widget
@@ -634,6 +722,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return 'schedule';
       case ResourceType.secrets:
         return 'type';
+      case ResourceType.customResource:
+        return 'kind';
     }
   }
 
@@ -775,6 +865,9 @@ class _ResourceContentState extends State<ResourceContent> {
             }
           },
         );
+      case ResourceType.customResource:
+        // Custom resources don't have sorting yet
+        return Container();
     }
   }
 
@@ -789,6 +882,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return Icons.schedule;
       case ResourceType.secrets:
         return Icons.lock;
+      case ResourceType.customResource:
+        return Icons.extension;
     }
   }
 
@@ -803,6 +898,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return 'Cron Jobs';
       case ResourceType.secrets:
         return 'Secrets';
+      case ResourceType.customResource:
+        return widget.selectedCustomResource?.kind ?? 'Custom Resource';
     }
   }
 }

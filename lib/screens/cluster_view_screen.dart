@@ -13,6 +13,7 @@ import '../widgets/resource_menu.dart';
 import '../widgets/resource_content.dart';
 import '../widgets/ship_helm_icon.dart';
 import '../exceptions/authentication_exception.dart';
+import '../models/custom_resource_info.dart';
 
 /// Main screen widget that displays Kubernetes cluster information
 class ClusterViewScreen extends StatefulWidget {
@@ -43,6 +44,12 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
 
   // Resource type selection state
   ResourceType _selectedResourceType = ResourceType.pods;
+  CustomResourceDefinitionInfo? _selectedCustomResource;
+
+  // Resource menu width state
+  double _resourceMenuWidth = 200.0;
+  static const double _minMenuWidth = 150.0;
+  static const double _maxMenuWidth = 400.0;
 
   @override
   void initState() {
@@ -593,14 +600,46 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
                 )
               : Row(
                   children: [
-                    // Left menu bar for resource types
-                    ResourceMenu(
-                      selectedResourceType: _selectedResourceType,
-                      onResourceTypeSelected: (ResourceType type) {
-                        setState(() {
-                          _selectedResourceType = type;
-                        });
-                      },
+                    // Left menu bar for resource types (resizable)
+                    SizedBox(
+                      width: _resourceMenuWidth,
+                      child: ResourceMenu(
+                        selectedResourceType: _selectedResourceType,
+                        onResourceTypeSelected: (ResourceType type) {
+                          setState(() {
+                            _selectedResourceType = type;
+                          });
+                        },
+                        selectedCustomResource: _selectedCustomResource,
+                        onCustomResourceSelected: (CustomResourceDefinitionInfo? crd) {
+                          setState(() {
+                            _selectedCustomResource = crd;
+                          });
+                        },
+                        kubernetesClient: _kubernetesClient!,
+                      ),
+                    ),
+                    // Drag handle for resizing
+                    MouseRegion(
+                      cursor: SystemMouseCursors.resizeColumn,
+                      child: GestureDetector(
+                        onHorizontalDragUpdate: (details) {
+                          setState(() {
+                            _resourceMenuWidth = (_resourceMenuWidth + details.delta.dx)
+                                .clamp(_minMenuWidth, _maxMenuWidth);
+                          });
+                        },
+                        child: Container(
+                          width: 4,
+                          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                          child: Center(
+                            child: Container(
+                              width: 1,
+                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     // Main content area
                     Expanded(
@@ -608,6 +647,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
                         resourceType: _selectedResourceType,
                         selectedNamespaces: _selectedNamespaces,
                         kubernetesClient: _kubernetesClient!,
+                        selectedCustomResource: _selectedCustomResource,
                       ),
                     ),
                   ],
