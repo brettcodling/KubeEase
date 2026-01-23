@@ -156,6 +156,19 @@ class _NamespaceDrawerState extends State<NamespaceDrawer> {
         .where((ns) => ns.toLowerCase().contains(namespaceSearchQuery.toLowerCase()))
         .toList();
 
+    // Sort namespaces: selected ones first, then alphabetically within each group
+    filteredNamespaces.sort((a, b) {
+      final aSelected = _selectedNamespaces.contains(a);
+      final bSelected = _selectedNamespaces.contains(b);
+
+      // If one is selected and the other isn't, selected comes first
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+
+      // If both have the same selection status, sort alphabetically
+      return a.compareTo(b);
+    });
+
     // Show empty state if no namespaces match
     if (filteredNamespaces.isEmpty) {
       return Center(
