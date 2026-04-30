@@ -56,6 +56,8 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     super.initState();
     // Set up retry callback for connection errors
     ConnectionErrorManager().setRetryCallback(_handleRetry);
+    // Lightweight probe used to detect when the cluster comes back online.
+    ConnectionErrorManager().setHealthCheck(_pingCluster);
     // Set up auth refresh callback for token expiration
     AuthRefreshManager().registerRefreshCallback(_refreshKubernetesClient);
     // Initialize the app when the widget is first created
@@ -67,6 +69,15 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     debugPrint('Retrying connection after error...');
     // Reinitialize the app
     _initializeApp();
+  }
+
+  /// Lightweight probe used by [ConnectionErrorManager] to decide when the
+  /// cluster is reachable again. Returns `false` if no client is available
+  /// yet, in which case the manager will keep backing off and retrying.
+  Future<bool> _pingCluster() async {
+    final client = _kubernetesClient;
+    if (client == null) return false;
+    return KubernetesService.pingCluster(client);
   }
 
   /// Refreshes the Kubernetes client when authentication token expires

@@ -8,6 +8,7 @@ import '../services/pods/pod_service.dart';
 import '../services/pods/pod_metrics_service.dart';
 import '../services/session_manager.dart';
 import '../services/port_forward_manager.dart';
+import '../services/service_accounts/service_account_service.dart';
 import '../models/pod_event.dart';
 import '../models/pod_metrics.dart';
 
@@ -37,6 +38,10 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
   // Events state
   List<PodEvent> _events = [];
   StreamSubscription<List<PodEvent>>? _eventsSubscription;
+
+  // Cloud identity bound to the pod's ServiceAccount (if any).
+  CloudIdentity? _cloudIdentity;
+  String? _resolvedServiceAccount;
 
   @override
   void initState() {
@@ -70,6 +75,7 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
             _isLoading = false;
             _error = null;
           });
+          _resolveCloudIdentity(details?.spec?.serviceAccountName);
         }
       },
       onError: (error) {
@@ -96,6 +102,25 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
         }
       },
     );
+  }
+
+  /// Resolves the cloud-provider identity bound to the pod's ServiceAccount,
+  /// re-fetching only when the SA name changes.
+  Future<void> _resolveCloudIdentity(String? serviceAccountName) async {
+    final saName = (serviceAccountName == null || serviceAccountName.isEmpty)
+        ? 'default'
+        : serviceAccountName;
+    if (saName == _resolvedServiceAccount) return;
+    _resolvedServiceAccount = saName;
+    final identity = await ServiceAccountService.resolveCloudIdentity(
+      widget.kubernetesClient,
+      widget.namespace,
+      saName,
+    );
+    if (!mounted || _resolvedServiceAccount != saName) return;
+    setState(() {
+      _cloudIdentity = identity;
+    });
   }
 
   void _startWatchingPodEvents() {
@@ -410,6 +435,13 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
             _buildInfoRow(Icons.folder_outlined, 'Namespace', _podDetails.metadata?.namespace ?? 'N/A'),
             _buildInfoRow(Icons.circle, 'Status', status, valueColor: statusColor),
             _buildInfoRow(Icons.dns_outlined, 'Node', _podDetails.spec?.nodeName ?? 'N/A'),
+            _buildInfoRow(Icons.badge_outlined, 'Service Account', _podDetails.spec?.serviceAccountName ?? 'default'),
+            if (_cloudIdentity != null)
+              _buildInfoRow(
+                Icons.cloud_outlined,
+                '${_cloudIdentity!.provider} Identity',
+                _cloudIdentity!.value,
+              ),
             _buildInfoRow(Icons.access_time, 'Created', _formatTimestamp(_podDetails.metadata?.creationTimestamp)),
           ],
         ),

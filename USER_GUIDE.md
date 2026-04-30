@@ -17,9 +17,11 @@ Welcome to KubeEase! This comprehensive guide will help you get the most out of 
 11. [Port Forwarding](#port-forwarding)
 12. [Session Management](#session-management)
 13. [Authentication & Token Management](#authentication--token-management)
-14. [Debug Menu](#debug-menu)
-15. [Tips & Tricks](#tips--tricks)
-16. [Troubleshooting](#troubleshooting)
+14. [Connection Resilience](#connection-resilience)
+15. [Workload Identity & Cloud Identity](#workload-identity--cloud-identity)
+16. [Debug Menu](#debug-menu)
+17. [Tips & Tricks](#tips--tricks)
+18. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -205,10 +207,14 @@ Each resource card displays:
 1. Click on any pod card in the list
 2. The detail screen shows:
    - **Overview** - Pod name, namespace, status, IP address
+   - **Service Account** - The `serviceAccountName` the pod runs as (defaults to `default` when unset)
+   - **Cloud Identity** - When the bound ServiceAccount has a recognized cloud-provider annotation, the resolved identity is shown (GCP service account email, AWS IAM role ARN, or Azure client ID). See [Workload Identity & Cloud Identity](#workload-identity--cloud-identity).
    - **Containers** - List of all containers in the pod
    - **Labels** - Key-value labels attached to the pod
    - **Conditions** - Pod condition status
    - **Events** - Recent events related to the pod
+
+> The same Service Account and Cloud Identity rows are also shown on the Deployment and CronJob detail screens (resolved from the pod template's `serviceAccountName`).
 
 ### Pod Status Indicators
 
@@ -781,6 +787,69 @@ If you experience persistent authentication errors:
 
 ---
 
+## Connection Resilience
+
+KubeEase is designed to ride out transient cluster connection issues without disrupting your workflow.
+
+### How It Works
+
+All resource watchers (namespaces, Pods, Deployments, Secrets, CronJobs, Custom Resources, and detail/event streams) register with a central connection manager. When a connection error is detected:
+
+1. **Pause** - All active watchers pause in place. The last-known data stays on screen, so resource lists do not flicker, reset, or reorder.
+2. **Probe with Backoff** - A lightweight cluster health check runs at increasing intervals (1s → 2s → 3s → 5s → 10s).
+3. **Resume Silently** - As soon as the cluster responds, all watchers resume from where they left off. No manual refresh required.
+4. **Escalate Only on Sustained Failure** - If recovery takes longer than ~30 seconds, the full blocking error dialog appears with a manual retry option.
+
+### What You'll See
+
+- **Brief blip (most common)** - Resource lists remain stable, possibly with a thin "Reconnecting..." banner near the top of the window. No action needed.
+- **Sustained outage** - The blocking connection error dialog appears. Click **Retry** when your network/cluster is restored.
+
+### Why This Matters
+
+Previously, a momentary connection drop could cause resource lists to refresh repeatedly or send you to a manual refresh screen. With the new resilient connection layer, those blips are absorbed automatically, and you only see a disruption when there is a genuine sustained problem.
+
+This works alongside [automatic token refresh](#authentication--token-management): an expired token triggers credential refresh, while a network blip triggers reconnection — both transparent to you.
+
+---
+
+## Workload Identity & Cloud Identity
+
+When a pod, deployment, or cron job runs under a ServiceAccount that is linked to a cloud-provider identity, KubeEase resolves and displays that identity on the corresponding detail screen.
+
+### Where It Appears
+
+On the **Pod**, **Deployment**, and **CronJob** detail screens, the info card includes:
+
+- **Service Account** - The `serviceAccountName` from the pod (or pod template) spec. Falls back to `default` when unset, matching Kubernetes behavior.
+- **<Provider> Identity** - The resolved cloud identity, only shown when a recognized annotation is present on the bound ServiceAccount.
+
+### Supported Providers
+
+KubeEase reads the following annotations from the referenced `ServiceAccount` object:
+
+| Provider | Annotation | Value Shown |
+|----------|-----------|-------------|
+| GCP (GKE Workload Identity) | `iam.gke.io/gcp-service-account` | GCP service account email (e.g. `my-sa@my-project.iam.gserviceaccount.com`) |
+| AWS (EKS IRSA) | `eks.amazonaws.com/role-arn` | IAM role ARN (e.g. `arn:aws:iam::123456789012:role/my-role`) |
+| Azure (AKS Workload Identity) | `azure.workload.identity/client-id` | Azure AD client ID (GUID) |
+
+The first matching annotation is used. If none are present, the row is omitted and only the ServiceAccount name is shown.
+
+### Caching
+
+The cloud identity lookup is cached per ServiceAccount name within each detail screen. The detail screens poll for updates regularly, but the underlying ServiceAccount is only re-fetched when the pod's `serviceAccountName` actually changes — there is no per-poll request overhead.
+
+### Troubleshooting
+
+If you expect to see a Cloud Identity row but it doesn't appear:
+
+1. **Confirm the annotation** - Run `kubectl get sa <name> -n <namespace> -o yaml` and check for one of the supported annotations on the ServiceAccount (not on the Pod).
+2. **Check RBAC** - Your user must be able to `get` ServiceAccounts in the namespace. Without permission, KubeEase silently falls back to showing only the SA name.
+3. **Different annotation key?** - If your environment uses a non-standard annotation, open an issue so support can be added.
+
+---
+
 ## Debug Menu
 
 KubeEase includes a built-in debug menu for testing and troubleshooting during development.
@@ -970,6 +1039,8 @@ When a pod has multiple containers:
 - Verify the namespace is still selected
 - Try switching to a different resource type and back
 - Restart KubeEase if the issue persists
+
+> **Note on transient blips**: KubeEase automatically pauses watchers and reconnects in the background when connection errors occur. A thin "Reconnecting..." banner may briefly appear; this is expected and resolves itself. The blocking connection error dialog is only shown after sustained failure (~30s). See [Connection Resilience](#connection-resilience).
 
 #### Context Switch Not Working
 

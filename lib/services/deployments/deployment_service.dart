@@ -139,9 +139,12 @@ class DeploymentService {
   ) {
     late StreamController<List<DeploymentInfo>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<DeploymentInfo> currentDeployments = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated deployments
         final updatedDeployments = await fetchDeployments(kubernetesClient, namespaces);
@@ -163,10 +166,8 @@ class DeploymentService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -174,6 +175,16 @@ class DeploymentService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<DeploymentInfo>>(
@@ -187,28 +198,30 @@ class DeploymentService {
         } catch (e) {
           debugPrint('Error fetching initial deployments: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Start periodic polling (every 3 seconds)
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );
@@ -267,9 +280,12 @@ class DeploymentService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
+    WatcherHandle? handle;
     dynamic currentDeployment;
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         final updatedDeployment = await getDeploymentDetails(kubernetesClient, namespace, deploymentName);
 
@@ -288,10 +304,25 @@ class DeploymentService {
           return;
         }
 
+        // Connection error: manager will pause us; data preserved.
+        if (ConnectionErrorManager().checkAndHandleError(e)) {
+          return;
+        }
+
         if (!controller.isClosed) {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<dynamic>(
@@ -303,16 +334,31 @@ class DeploymentService {
           }
         } catch (e) {
           debugPrint('Error fetching initial deployment details: $e');
-          if (!controller.isClosed) {
-            controller.addError(e);
+
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Poll every 3 seconds
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
+
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

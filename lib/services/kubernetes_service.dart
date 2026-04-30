@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import 'package:watcher/watcher.dart';
 import '../exceptions/authentication_exception.dart';
-import '../exceptions/connection_exception.dart';
 import 'connection_error_manager.dart';
 import 'auth_refresh_manager.dart';
 
@@ -83,6 +82,20 @@ class KubernetesService {
     return (availableContexts, activeContext);
   }
 
+  /// Lightweight reachability probe used by [ConnectionErrorManager] to decide
+  /// when the cluster is back online. Performs a minimal `listNamespace` call
+  /// (`limit: 1`) and returns `true` on success, `false` on any error.
+  static Future<bool> pingCluster(Kubernetes kubernetesClient) async {
+    try {
+      final coreV1Api = kubernetesClient.client.getCoreV1Api();
+      await coreV1Api.listNamespace(limit: 1);
+      return true;
+    } catch (e) {
+      debugPrint('Cluster ping failed: $e');
+      return false;
+    }
+  }
+
   /// Fetches the list of namespaces from the current Kubernetes context
   static Future<List<String>> loadNamespaces(Kubernetes kubernetesClient) async {
     try {
@@ -112,9 +125,12 @@ class KubernetesService {
   static Stream<List<String>> watchNamespaces(Kubernetes kubernetesClient) {
     late StreamController<List<String>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<String> currentNamespaces = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated namespaces
         final updatedNamespaces = await loadNamespaces(kubernetesClient);
@@ -136,11 +152,8 @@ class KubernetesService {
           return;
         }
 
-        // Check if this is a connection error
+        // Check if this is a connection error - manager will pause us via callback
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          // Connection error handled globally, cancel this watcher
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -148,6 +161,16 @@ class KubernetesService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<String>>(
@@ -161,29 +184,33 @@ class KubernetesService {
         } catch (e) {
           debugPrint('Error fetching initial namespaces: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            // Connection error handled globally, don't start polling
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          // Connection error: keep stream alive; will resume after reconnect.
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Start periodic polling (every 5 seconds for namespaces)
-        timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
+        startPolling();
 
-        // Register cancel callback with connection error manager
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        // Register pause/resume so we can ride out transient connection blips
+        // without tearing down state.
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

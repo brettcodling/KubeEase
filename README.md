@@ -12,7 +12,9 @@ A modern, cross-platform Kubernetes cluster manager built with Flutter. KubeEase
 - **Real-time Updates** - Live streaming of resource states and events
 - **External Sync** - Automatically detects and syncs with kubectl context changes
 - **Automatic Token Refresh** - Seamlessly handles expired authentication tokens for cloud-managed clusters (GKE, EKS, AKS)
+- **Resilient Connection Handling** - Automatically recovers from transient cluster connection blips without UI flicker, preserving last-known data and only escalating to a blocking error after sustained failure
 - **Resource Metrics** - Real-time CPU and memory usage monitoring with historical charts
+- **Workload Identity Display** - Detail screens show the bound ServiceAccount and resolve cloud-provider identities (GCP email, AWS role ARN, Azure client ID) from standard Workload Identity / IRSA annotations
 
 ### 🖥️ Interactive Tools
 - **Container Terminals** - Open interactive bash/sh sessions directly to pod containers
@@ -85,6 +87,7 @@ flutter build linux  # or macos, windows
 ### Working with Pods
 
 - **View Details** - Click any pod to see detailed information, containers, events, and conditions
+- **Service Account & Cloud Identity** - Detail screens show the pod's `serviceAccountName` and, when bound via Workload Identity / IRSA / Azure Workload Identity, the underlying cloud identity (GCP service account email, AWS role ARN, or Azure client ID)
 - **Monitor Metrics** - View real-time CPU and memory usage with historical charts showing resource requests and limits
 - **Open Terminal** - Click the terminal icon to open an interactive shell in a container
 - **View Logs** - Click the logs icon to stream container logs in real-time
@@ -149,6 +152,27 @@ KubeEase provides real-time monitoring of container resource usage:
 - **Namespace Memory** - Your namespace selections are remembered per context
 - **Seamless Switching** - Switch contexts without losing your workflow preferences
 
+### Connection Resilience
+
+KubeEase keeps resource views stable through transient cluster connection issues:
+
+- **Pause/Resume Watchers** - Background streams pause on connection errors and resume in place once the cluster is reachable again, so lists no longer flicker or thrash
+- **Exponential Backoff Probes** - A lightweight health check runs at increasing intervals (1s, 2s, 3s, 5s, 10s) until the cluster responds
+- **Subtle Reconnecting Banner** - A thin banner appears during recovery; the full blocking error dialog is only shown after sustained failure (~30s)
+- **Last-Known Data Preserved** - You continue to see the most recent resource data while reconnection is in progress
+
+This applies to all watched resource types (Pods, Deployments, Secrets, CronJobs, Custom Resources) and to namespace listings.
+
+### Workload Identity & Cloud Identity Resolution
+
+Pod, Deployment, and CronJob detail screens show the configured `serviceAccountName` and, when applicable, resolve the underlying cloud identity by reading standard annotations from the referenced ServiceAccount object:
+
+- **GCP (GKE Workload Identity)** - `iam.gke.io/gcp-service-account` → GCP service account email
+- **AWS (EKS IRSA)** - `eks.amazonaws.com/role-arn` → IAM role ARN
+- **Azure (AKS Workload Identity)** - `azure.workload.identity/client-id` → Azure AD client ID
+
+The lookup is cached per ServiceAccount name so periodic detail polling does not generate redundant API calls. If no recognized annotation is present, only the ServiceAccount name is shown.
+
 ### Authentication & Token Management
 
 KubeEase automatically handles authentication token expiration for cloud-managed Kubernetes clusters:
@@ -203,6 +227,8 @@ lib/
 │   ├── kubernetes_service.dart
 │   ├── session_manager.dart
 │   ├── port_forward_manager.dart
+│   ├── connection_error_manager.dart  # Reconnection state machine + watcher registry
+│   ├── service_accounts/              # Cloud identity resolution from SA annotations
 │   └── pods/
 └── models/                   # Data models
 ```
@@ -248,6 +274,8 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Real-time resource metrics with historical charts
 - [x] Automatic authentication token refresh
 - [x] Support for custom resources (CRDs)
+- [x] Automatic recovery from transient connection failures
+- [x] ServiceAccount and cloud identity (GCP/AWS/Azure) display on workload detail screens
 
 ### Planned 🚀
 - [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)

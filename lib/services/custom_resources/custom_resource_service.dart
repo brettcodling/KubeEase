@@ -124,10 +124,13 @@ class CustomResourceService {
   ) {
     late StreamController<List<CustomResourceInfo>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<CustomResourceInfo> currentResources = [];
     bool isFirstFetch = true;
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated custom resources
         final updatedResources = await fetchCustomResources(
@@ -153,10 +156,8 @@ class CustomResourceService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -166,22 +167,38 @@ class CustomResourceService {
       }
     }
 
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
+    }
+
     controller = StreamController<List<CustomResourceInfo>>(
       onListen: () {
         // Initial fetch
         poll();
 
-        // Start periodic polling (every 5 seconds)
-        timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
+        startPolling();
 
-        // Register cancel callback with connection error manager
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/cron_jobs/cron_job_service.dart';
+import '../services/service_accounts/service_account_service.dart';
 import '../services/session_manager.dart';
 
 /// Screen that displays detailed information about a Kubernetes CronJob
@@ -28,6 +29,10 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
   StreamSubscription<dynamic>? _cronJobDetailsSubscription;
   List<dynamic> _jobs = [];
   Timer? _jobsRefreshTimer;
+
+  // Cloud identity bound to the cron job's pod template ServiceAccount.
+  CloudIdentity? _cloudIdentity;
+  String? _resolvedServiceAccount;
 
   @override
   void initState() {
@@ -61,6 +66,9 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
             _isLoading = false;
             _error = null;
           });
+          _resolveCloudIdentity(
+            details?.spec?.jobTemplate?.spec?.template?.spec?.serviceAccountName,
+          );
         }
       },
       onError: (error) {
@@ -87,6 +95,25 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
         }
       },
     );
+  }
+
+  /// Resolves the cloud-provider identity bound to the cron job's
+  /// pod-template ServiceAccount, re-fetching only when the SA name changes.
+  Future<void> _resolveCloudIdentity(String? serviceAccountName) async {
+    final saName = (serviceAccountName == null || serviceAccountName.isEmpty)
+        ? 'default'
+        : serviceAccountName;
+    if (saName == _resolvedServiceAccount) return;
+    _resolvedServiceAccount = saName;
+    final identity = await ServiceAccountService.resolveCloudIdentity(
+      widget.kubernetesClient,
+      widget.namespace,
+      saName,
+    );
+    if (!mounted || _resolvedServiceAccount != saName) return;
+    setState(() {
+      _cloudIdentity = identity;
+    });
   }
 
   void _startWatchingJobs() {
@@ -484,6 +511,13 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
             _buildInfoRow(Icons.pause_circle_outline, 'Suspended', suspended ? 'Yes' : 'No',
               valueColor: suspended ? Colors.orange : Colors.green),
             _buildInfoRow(Icons.policy_outlined, 'Concurrency', _cronJobDetails.spec?.concurrencyPolicy ?? 'N/A'),
+            _buildInfoRow(Icons.badge_outlined, 'Service Account', _cronJobDetails.spec?.jobTemplate?.spec?.template?.spec?.serviceAccountName ?? 'default'),
+            if (_cloudIdentity != null)
+              _buildInfoRow(
+                Icons.cloud_outlined,
+                '${_cloudIdentity!.provider} Identity',
+                _cloudIdentity!.value,
+              ),
             _buildInfoRow(Icons.access_time, 'Created', _formatTimestamp(_cronJobDetails.metadata?.creationTimestamp)),
           ],
         ),

@@ -34,9 +34,12 @@ class CronJobService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
+    WatcherHandle? handle;
     dynamic currentCronJob;
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         final updatedCronJob = await getCronJobDetails(kubernetesClient, namespace, cronJobName);
 
@@ -48,10 +51,8 @@ class CronJobService {
       } catch (e) {
         debugPrint('Error polling for cron job detail updates: $e');
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -59,6 +60,16 @@ class CronJobService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<dynamic>(
@@ -71,28 +82,30 @@ class CronJobService {
         } catch (e) {
           debugPrint('Error fetching initial cron job details: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Poll every 3 seconds
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );
@@ -133,9 +146,12 @@ class CronJobService {
   ) {
     late StreamController<List<CronJobInfo>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<CronJobInfo> currentCronJobs = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated cron jobs
         final updatedCronJobs = await fetchCronJobs(kubernetesClient, namespaces);
@@ -157,10 +173,8 @@ class CronJobService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -168,6 +182,16 @@ class CronJobService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<CronJobInfo>>(
@@ -181,28 +205,30 @@ class CronJobService {
         } catch (e) {
           debugPrint('Error fetching initial cron jobs: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Start periodic polling (every 3 seconds)
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

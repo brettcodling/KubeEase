@@ -34,9 +34,12 @@ class SecretService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
+    WatcherHandle? handle;
     dynamic currentSecret;
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         final updatedSecret = await getSecretDetails(kubernetesClient, namespace, secretName);
 
@@ -55,10 +58,8 @@ class SecretService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -66,6 +67,16 @@ class SecretService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<dynamic>(
@@ -78,28 +89,30 @@ class SecretService {
         } catch (e) {
           debugPrint('Error fetching initial secret details: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Poll every 3 seconds
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );
@@ -140,9 +153,12 @@ class SecretService {
   ) {
     late StreamController<List<SecretInfo>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<SecretInfo> currentSecrets = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated secrets
         final updatedSecrets = await fetchSecrets(kubernetesClient, namespaces);
@@ -164,10 +180,8 @@ class SecretService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -175,6 +189,16 @@ class SecretService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<SecretInfo>>(
@@ -188,28 +212,30 @@ class SecretService {
         } catch (e) {
           debugPrint('Error fetching initial secrets: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Start periodic polling (every 3 seconds)
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

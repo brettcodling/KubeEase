@@ -35,9 +35,12 @@ class PodService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
+    WatcherHandle? handle;
     dynamic currentPod;
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         final updatedPod = await getPodDetails(kubernetesClient, namespace, podName);
 
@@ -49,10 +52,8 @@ class PodService {
       } catch (e) {
         debugPrint('Error polling for pod detail updates: $e');
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -60,6 +61,16 @@ class PodService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<dynamic>(
@@ -72,28 +83,30 @@ class PodService {
         } catch (e) {
           debugPrint('Error fetching initial pod details: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Poll every 3 seconds
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );
@@ -138,9 +151,12 @@ class PodService {
   ) {
     late StreamController<List<PodInfo>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<PodInfo> currentPods = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         // Fetch updated pods
         final updatedPods = await fetchPods(kubernetesClient, namespaces);
@@ -163,10 +179,8 @@ class PodService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; cached state is preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -174,6 +188,16 @@ class PodService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<PodInfo>>(
@@ -187,28 +211,30 @@ class PodService {
         } catch (e) {
           debugPrint('Error fetching initial pods: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Start periodic polling (every 3 seconds)
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );
@@ -446,9 +472,12 @@ class PodService {
   ) {
     late StreamController<List<PodEvent>> controller;
     Timer? timer;
+    WatcherHandle? handle;
     List<PodEvent> currentEvents = [];
+    bool isPaused = false;
 
     void poll() async {
+      if (isPaused) return;
       try {
         final updatedEvents = await fetchPodEvents(kubernetesClient, namespace, podName);
 
@@ -469,10 +498,8 @@ class PodService {
           return;
         }
 
-        // Check if this is a connection error
+        // Connection error: manager will pause us; data preserved.
         if (ConnectionErrorManager().checkAndHandleError(e)) {
-          timer?.cancel();
-          controller.close();
           return;
         }
 
@@ -480,6 +507,16 @@ class PodService {
           controller.addError(e);
         }
       }
+    }
+
+    void startPolling() {
+      timer?.cancel();
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+    }
+
+    void stopPolling() {
+      timer?.cancel();
+      timer = null;
     }
 
     controller = StreamController<List<PodEvent>>(
@@ -492,28 +529,30 @@ class PodService {
         } catch (e) {
           debugPrint('Error fetching initial pod events: $e');
 
-          // Check if this is a connection error
-          if (ConnectionErrorManager().checkAndHandleError(e)) {
-            controller.close();
-            return;
-          }
-
-          if (!controller.isClosed) {
-            controller.addError(e);
+          if (!ConnectionErrorManager().checkAndHandleError(e)) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
           }
         }
 
-        // Poll every 3 seconds
-        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
+        startPolling();
 
-        // Register cancel callback
-        ConnectionErrorManager().registerWatcherCancelCallback(() {
-          timer?.cancel();
-          controller.close();
-        });
+        handle = ConnectionErrorManager().registerWatcher(
+          pause: () {
+            isPaused = true;
+            stopPolling();
+          },
+          resume: () {
+            isPaused = false;
+            startPolling();
+          },
+        );
       },
       onCancel: () {
-        timer?.cancel();
+        stopPolling();
+        ConnectionErrorManager().unregisterWatcher(handle);
+        handle = null;
         controller.close();
       },
     );

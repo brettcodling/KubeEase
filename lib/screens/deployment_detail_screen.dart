@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/deployments/deployment_service.dart';
+import '../services/service_accounts/service_account_service.dart';
 
 /// Screen that displays detailed information about a Kubernetes Deployment
 class DeploymentDetailScreen extends StatefulWidget {
@@ -25,6 +26,10 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
   bool _isLoading = true;
   String? _error;
   StreamSubscription<dynamic>? _deploymentDetailsSubscription;
+
+  // Cloud identity bound to the deployment's pod template ServiceAccount.
+  CloudIdentity? _cloudIdentity;
+  String? _resolvedServiceAccount;
 
   @override
   void initState() {
@@ -56,6 +61,7 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
             _isLoading = false;
             _error = null;
           });
+          _resolveCloudIdentity(details?.spec?.template?.spec?.serviceAccountName);
         }
       },
       onError: (error) {
@@ -82,6 +88,25 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
         }
       },
     );
+  }
+
+  /// Resolves the cloud-provider identity bound to the deployment's
+  /// pod-template ServiceAccount, re-fetching only when the SA name changes.
+  Future<void> _resolveCloudIdentity(String? serviceAccountName) async {
+    final saName = (serviceAccountName == null || serviceAccountName.isEmpty)
+        ? 'default'
+        : serviceAccountName;
+    if (saName == _resolvedServiceAccount) return;
+    _resolvedServiceAccount = saName;
+    final identity = await ServiceAccountService.resolveCloudIdentity(
+      widget.kubernetesClient,
+      widget.namespace,
+      saName,
+    );
+    if (!mounted || _resolvedServiceAccount != saName) return;
+    setState(() {
+      _cloudIdentity = identity;
+    });
   }
 
   @override
@@ -194,6 +219,13 @@ class _DeploymentDetailScreenState extends State<DeploymentDetailScreen> {
             _buildInfoRow(Icons.check_circle_outline, 'Ready', '$readyReplicas'),
             _buildInfoRow(Icons.cloud_done_outlined, 'Available', '$availableReplicas'),
             _buildInfoRow(Icons.update, 'Updated', '$updatedReplicas'),
+            _buildInfoRow(Icons.badge_outlined, 'Service Account', _deploymentDetails.spec?.template?.spec?.serviceAccountName ?? 'default'),
+            if (_cloudIdentity != null)
+              _buildInfoRow(
+                Icons.cloud_outlined,
+                '${_cloudIdentity!.provider} Identity',
+                _cloudIdentity!.value,
+              ),
             _buildInfoRow(Icons.access_time, 'Created', _formatTimestamp(_deploymentDetails.metadata?.creationTimestamp)),
           ],
         ),
