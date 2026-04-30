@@ -74,6 +74,13 @@ enum SecretSortField {
   age,
 }
 
+/// Enum for custom resource sort fields
+enum CustomResourceSortField {
+  name,
+  namespace,
+  age,
+}
+
 /// Enum for sort direction
 enum SortDirection {
   ascending,
@@ -104,6 +111,7 @@ class _ResourceContentState extends State<ResourceContent> {
   // Custom Resources state
   List<CustomResourceInfo> _customResources = [];
   StreamSubscription<List<CustomResourceInfo>>? _customResourceStreamSubscription;
+  CustomResourceSortField _customResourceSortField = CustomResourceSortField.name;
 
   // Common state
   bool _isLoading = false;
@@ -654,10 +662,10 @@ class _ResourceContentState extends State<ResourceContent> {
           onResumeWatching: _resumeWatching,
         );
       case ResourceType.customResource:
-        // Use filtered custom resources
-        final filteredResources = _getFilteredCustomResources();
+        // Use filtered and sorted custom resources
+        final sortedResources = _getSortedCustomResources();
         return CustomResourcesList(
-          resources: filteredResources,
+          resources: sortedResources,
           isLoading: _isLoading,
           crd: widget.selectedCustomResource,
           kubernetesClient: widget.kubernetesClient,
@@ -667,16 +675,38 @@ class _ResourceContentState extends State<ResourceContent> {
     }
   }
 
-  /// Filters the custom resource list based on search query
-  List<CustomResourceInfo> _getFilteredCustomResources() {
-    if (_searchQuery.isEmpty) return _customResources;
-
-    final query = _searchQuery.toLowerCase();
-    return _customResources.where((resource) {
+  /// Filters and sorts the custom resource list based on search query, sort field and direction
+  List<CustomResourceInfo> _getSortedCustomResources() {
+    // First filter by search query
+    var filteredResources = _customResources.where((resource) {
+      if (_searchQuery.isEmpty) return true;
+      final query = _searchQuery.toLowerCase();
       return resource.name.toLowerCase().contains(query) ||
           resource.namespace.toLowerCase().contains(query) ||
           resource.kind.toLowerCase().contains(query);
     }).toList();
+
+    // Then sort
+    filteredResources.sort((a, b) {
+      int comparison;
+
+      switch (_customResourceSortField) {
+        case CustomResourceSortField.name:
+          comparison = a.name.compareTo(b.name);
+          break;
+        case CustomResourceSortField.namespace:
+          comparison = a.namespace.compareTo(b.namespace);
+          break;
+        case CustomResourceSortField.age:
+          comparison = (a.age ?? '').compareTo(b.age ?? '');
+          break;
+      }
+
+      // Reverse if descending
+      return _sortDirection == SortDirection.ascending ? comparison : -comparison;
+    });
+
+    return filteredResources;
   }
 
   /// Builds the search box widget
@@ -866,8 +896,24 @@ class _ResourceContentState extends State<ResourceContent> {
           },
         );
       case ResourceType.customResource:
-        // Custom resources don't have sorting yet
-        return Container();
+        return DropdownButton<CustomResourceSortField>(
+          value: _customResourceSortField,
+          underline: Container(),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          borderRadius: BorderRadius.circular(8),
+          items: const [
+            DropdownMenuItem(value: CustomResourceSortField.name, child: Text('Name')),
+            DropdownMenuItem(value: CustomResourceSortField.namespace, child: Text('Namespace')),
+            DropdownMenuItem(value: CustomResourceSortField.age, child: Text('Age')),
+          ],
+          onChanged: (CustomResourceSortField? newValue) {
+            if (newValue != null) {
+              setState(() {
+                _customResourceSortField = newValue;
+              });
+            }
+          },
+        );
     }
   }
 

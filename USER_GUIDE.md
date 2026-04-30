@@ -302,6 +302,13 @@ When viewing custom resources, each card displays:
 - **Kind** - The resource type (e.g., `ExternalSecret`)
 - **Age** - How long the resource has existed
 
+#### Searching and Sorting
+
+Custom resource lists support the same search and sort controls as other resource types, limited to fields that are universally available regardless of the CRD schema:
+
+- **Search** - Filter the list by typing in the search box. Matches against **name**, **namespace**, and **kind** (case-insensitive).
+- **Sort** - Use the "Sort by" dropdown to order the list by **Name**, **Namespace**, or **Age**. Toggle the arrow button to switch between ascending and descending order.
+
 #### Cluster-Scoped vs Namespaced Resources
 
 **Namespaced Resources**:
