@@ -120,22 +120,17 @@ class KubernetesService {
     }
   }
 
-  /// Watches namespaces using periodic polling
-  /// Returns a stream that emits the complete list of namespaces whenever changes occur
+  /// Watches namespaces using periodic polling.
+  /// Returns a stream that emits the complete list of namespaces whenever changes occur.
   static Stream<List<String>> watchNamespaces(Kubernetes kubernetesClient) {
     late StreamController<List<String>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<String> currentNamespaces = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated namespaces
         final updatedNamespaces = await loadNamespaces(kubernetesClient);
-
-        // Only emit if the list has changed
         if (_namespacesHaveChanged(currentNamespaces, updatedNamespaces)) {
           currentNamespaces = updatedNamespaces;
           if (!controller.isClosed) {
@@ -145,72 +140,29 @@ class KubernetesService {
       } catch (e) {
         debugPrint('Error polling for namespace updates: $e');
 
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
 
-        // Check if this is a connection error - manager will pause us via callback
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<String>>(
       onListen: () async {
-        // Emit initial list of namespaces
         try {
           currentNamespaces = await loadNamespaces(kubernetesClient);
-          if (!controller.isClosed) {
-            controller.add(currentNamespaces);
-          }
+          if (!controller.isClosed) controller.add(currentNamespaces);
         } catch (e) {
           debugPrint('Error fetching initial namespaces: $e');
-
-          // Connection error: keep stream alive; will resume after reconnect.
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        // Register pause/resume so we can ride out transient connection blips
-        // without tearing down state.
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );

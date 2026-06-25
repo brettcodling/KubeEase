@@ -27,7 +27,7 @@ class PodService {
     }
   }
 
-  /// Watches a specific pod for updates using periodic polling
+  /// Watches a specific pod for updates using periodic polling.
   static Stream<dynamic> watchPodDetails(
     Kubernetes kubernetesClient,
     String namespace,
@@ -35,78 +35,35 @@ class PodService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
-    WatcherHandle? handle;
-    dynamic currentPod;
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
         final updatedPod = await getPodDetails(kubernetesClient, namespace, podName);
-
-        // Always emit updates for detail views (user wants to see changes)
-        currentPod = updatedPod;
-        if (!controller.isClosed) {
-          controller.add(updatedPod);
-        }
+        if (!controller.isClosed) controller.add(updatedPod);
       } catch (e) {
         debugPrint('Error polling for pod detail updates: $e');
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          currentPod = await getPodDetails(kubernetesClient, namespace, podName);
-          if (!controller.isClosed) {
-            controller.add(currentPod);
-          }
+          final pod = await getPodDetails(kubernetesClient, namespace, podName);
+          if (!controller.isClosed) controller.add(pod);
         } catch (e) {
           debugPrint('Error fetching initial pod details: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
@@ -139,102 +96,48 @@ class PodService {
     }
   }
 
-  /// Watches pods from the specified namespaces using periodic polling
-  /// Returns a stream that emits the complete list of pods whenever changes occur
-  ///
-  /// Note: The k8s Dart package doesn't properly support Kubernetes watch API streaming,
-  /// so we use periodic polling as a reliable alternative. This provides near-real-time
-  /// updates (every 3 seconds) which is sufficient for most use cases.
+  /// Watches pods from the specified namespaces using periodic polling.
+  /// Returns a stream that emits the complete list of pods whenever changes occur.
   static Stream<List<PodInfo>> watchPods(
     Kubernetes kubernetesClient,
     Set<String> namespaces,
   ) {
     late StreamController<List<PodInfo>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<PodInfo> currentPods = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated pods
         final updatedPods = await fetchPods(kubernetesClient, namespaces);
-
-        // Only emit if the list has changed
         if (_podsHaveChanged(currentPods, updatedPods)) {
           currentPods = updatedPods;
-          if (!controller.isClosed) {
-            controller.add(updatedPods);
-          }
+          if (!controller.isClosed) controller.add(updatedPods);
         }
       } catch (e) {
         debugPrint('Error fetching pods: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered, the error will be retried automatically
-          // after the client is refreshed in cluster_view_screen
-          return;
-        }
-
-        // Connection error: manager will pause us; cached state is preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<PodInfo>>(
       onListen: () async {
-        // Emit initial list of pods
         try {
           currentPods = await fetchPods(kubernetesClient, namespaces);
-          if (!controller.isClosed) {
-            controller.add(currentPods);
-          }
+          if (!controller.isClosed) controller.add(currentPods);
         } catch (e) {
           debugPrint('Error fetching initial pods: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
@@ -464,7 +367,7 @@ class PodService {
     }
   }
 
-  /// Watches events for a specific pod using periodic polling
+  /// Watches events for a specific pod using periodic polling.
   static Stream<List<PodEvent>> watchPodEvents(
     Kubernetes kubernetesClient,
     String namespace,
@@ -472,87 +375,40 @@ class PodService {
   ) {
     late StreamController<List<PodEvent>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<PodEvent> currentEvents = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
         final updatedEvents = await fetchPodEvents(kubernetesClient, namespace, podName);
-
-        // Only emit if the events have changed
         if (_eventsHaveChanged(currentEvents, updatedEvents)) {
           currentEvents = updatedEvents;
-          if (!controller.isClosed) {
-            controller.add(updatedEvents);
-          }
+          if (!controller.isClosed) controller.add(updatedEvents);
         }
       } catch (e) {
         debugPrint('Error polling for pod events: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<PodEvent>>(
       onListen: () async {
         try {
           currentEvents = await fetchPodEvents(kubernetesClient, namespace, podName);
-          if (!controller.isClosed) {
-            controller.add(currentEvents);
-          }
+          if (!controller.isClosed) controller.add(currentEvents);
         } catch (e) {
           debugPrint('Error fetching initial pod events: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );

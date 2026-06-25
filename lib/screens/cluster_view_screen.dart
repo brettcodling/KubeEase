@@ -54,20 +54,11 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
   @override
   void initState() {
     super.initState();
-    // Set up retry callback for connection errors
-    ConnectionErrorManager().setRetryCallback(_handleRetry);
     // Lightweight probe used to detect when the cluster comes back online.
     ConnectionErrorManager().setHealthCheck(_pingCluster);
     // Set up auth refresh callback for token expiration
     AuthRefreshManager().registerRefreshCallback(_refreshKubernetesClient);
     // Initialize the app when the widget is first created
-    _initializeApp();
-  }
-
-  /// Handles retry action from connection error dialog
-  void _handleRetry() {
-    debugPrint('Retrying connection after error...');
-    // Reinitialize the app
     _initializeApp();
   }
 

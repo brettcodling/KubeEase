@@ -50,7 +50,7 @@ class ServiceAccountService {
       debugPrint('Error resolving cloud identity for $serviceAccountName in $namespace: $e');
       // Surface connection errors to the manager so the global reconnection
       // flow kicks in; otherwise swallow so the detail screen still renders.
-      ConnectionErrorManager().checkAndHandleError(e);
+      ConnectionErrorManager().reportConnectionError(e);
       return null;
     }
   }

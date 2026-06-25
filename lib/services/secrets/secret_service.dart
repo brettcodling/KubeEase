@@ -26,7 +26,7 @@ class SecretService {
     }
   }
 
-  /// Watches a specific secret for updates using periodic polling
+  /// Watches a specific secret for updates using periodic polling.
   static Stream<dynamic> watchSecretDetails(
     Kubernetes kubernetesClient,
     String namespace,
@@ -34,85 +34,36 @@ class SecretService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
-    WatcherHandle? handle;
-    dynamic currentSecret;
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
         final updatedSecret = await getSecretDetails(kubernetesClient, namespace, secretName);
-
-        // Always emit updates for detail views (user wants to see changes)
-        currentSecret = updatedSecret;
-        if (!controller.isClosed) {
-          controller.add(updatedSecret);
-        }
+        if (!controller.isClosed) controller.add(updatedSecret);
       } catch (e) {
         debugPrint('Error polling for secret detail updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          currentSecret = await getSecretDetails(kubernetesClient, namespace, secretName);
-          if (!controller.isClosed) {
-            controller.add(currentSecret);
-          }
+          final secret = await getSecretDetails(kubernetesClient, namespace, secretName);
+          if (!controller.isClosed) controller.add(secret);
         } catch (e) {
           debugPrint('Error fetching initial secret details: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
@@ -145,97 +96,48 @@ class SecretService {
     }
   }
 
-  /// Watches secrets from the specified namespaces using periodic polling
-  /// Returns a stream that emits the complete list of secrets whenever changes occur
+  /// Watches secrets from the specified namespaces using periodic polling.
+  /// Returns a stream that emits the complete list of secrets whenever changes occur.
   static Stream<List<SecretInfo>> watchSecrets(
     Kubernetes kubernetesClient,
     Set<String> namespaces,
   ) {
     late StreamController<List<SecretInfo>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<SecretInfo> currentSecrets = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated secrets
         final updatedSecrets = await fetchSecrets(kubernetesClient, namespaces);
-
-        // Only emit if the list has changed
         if (_secretsHaveChanged(currentSecrets, updatedSecrets)) {
           currentSecrets = updatedSecrets;
-          if (!controller.isClosed) {
-            controller.add(updatedSecrets);
-          }
+          if (!controller.isClosed) controller.add(updatedSecrets);
         }
       } catch (e) {
         debugPrint('Error polling for secret updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<SecretInfo>>(
       onListen: () async {
-        // Emit initial list of secrets
         try {
           currentSecrets = await fetchSecrets(kubernetesClient, namespaces);
-          if (!controller.isClosed) {
-            controller.add(currentSecrets);
-          }
+          if (!controller.isClosed) controller.add(currentSecrets);
         } catch (e) {
           debugPrint('Error fetching initial secrets: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );

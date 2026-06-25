@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
-import 'package:pty/pty.dart';
+import 'package:flutter_pty/flutter_pty.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/session_manager.dart';
 
@@ -22,7 +23,7 @@ class TerminalViewer extends StatefulWidget {
 class _TerminalViewerState extends State<TerminalViewer> {
   late final Terminal _terminal;
   late final TerminalController _terminalController;
-  late PseudoTerminal? _pty;
+  late Pty? _pty;
   bool _isLoading = true;
   String? _error;
   String? _resolvedContainerName;
@@ -48,12 +49,12 @@ class _TerminalViewerState extends State<TerminalViewer> {
       _terminal.onOutput = (data) {
         // Only send input if terminal is ready
         if (_isTerminalReady) {
-          _pty?.write(data);
+          _pty?.write(utf8.encode(data));
         }
       };
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
         // Resize the PTY when terminal is resized
-        _pty?.resize(width, height);
+        _pty?.resize(height, width);
       };
 
       // NOTE: Don't recreate the PTY output listener - it's already listening
@@ -67,12 +68,12 @@ class _TerminalViewerState extends State<TerminalViewer> {
       _terminal.onOutput = (data) {
         // Only send input if terminal is ready
         if (_isTerminalReady) {
-          _pty?.write(data);
+          _pty?.write(utf8.encode(data));
         }
       };
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
         // Resize the PTY when terminal is resized
-        _pty?.resize(width, height);
+        _pty?.resize(height, width);
       };
 
       // Store in session for reuse
@@ -121,9 +122,9 @@ class _TerminalViewerState extends State<TerminalViewer> {
       _resolvedContainerName = containerName;
 
       // Start kubectl exec with a real PTY for full terminal support
-      _pty = PseudoTerminal.start(
+      _pty = Pty.start(
         'kubectl',
-        [
+        arguments: [
           'exec',
           '-it',
           '-n',
@@ -149,12 +150,13 @@ class _TerminalViewerState extends State<TerminalViewer> {
       // Listen to PTY output and write to terminal
       // Store the subscription so it persists across minimize/restore
       // Note: We don't check 'mounted' here because the terminal object persists
-      widget.session.ptyOutputSubscription = _pty!.out.listen(
+      widget.session.ptyOutputSubscription = _pty!.output.listen(
         (data) {
-          _terminal.write(data);
+          final decoded = utf8.decode(data, allowMalformed: true);
+          _terminal.write(decoded);
 
           // Always buffer output
-          _outputBuffer.write(data);
+          _outputBuffer.write(decoded);
 
           // Keep buffer size manageable (last 500 characters)
           if (_outputBuffer.length > 500) {
@@ -165,7 +167,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
 
           // Only try to extract directory if we see a prompt character
           // This avoids expensive regex on every output chunk
-          if (data.contains('\$') || data.contains('#')) {
+          if (decoded.contains('\$') || decoded.contains('#')) {
             // Try to extract current directory from the buffered output
             _extractCurrentDirectory(_outputBuffer.toString());
 
@@ -186,7 +188,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
       );
 
       // Set initial terminal size
-      _pty!.resize(_terminal.viewWidth, _terminal.viewHeight);
+      _pty!.resize(_terminal.viewHeight, _terminal.viewWidth);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -235,7 +237,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
   Future<void> _uploadFile() async {
     try {
       // Pick a file
-      final result = await FilePicker.platform.pickFiles();
+      final result = await FilePicker.pickFiles();
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
@@ -378,7 +380,7 @@ class _TerminalViewerState extends State<TerminalViewer> {
 
     try {
       // Pick a directory to save the files
-      final outputDir = await FilePicker.platform.getDirectoryPath(
+      final outputDir = await FilePicker.getDirectoryPath(
         dialogTitle: 'Select directory to save files',
       );
 
