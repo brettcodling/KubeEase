@@ -39,10 +39,12 @@ class PodService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedPod = await getPodDetails(kubernetesClient, namespace, podName);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedPod = await getPodDetails(client, namespace, podName);
         if (!controller.isClosed) controller.add(updatedPod);
       } catch (e) {
         debugPrint('Error polling for pod detail updates: $e');
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
         if (ConnectionErrorManager().reportConnectionError(e)) return;
         if (!controller.isClosed) controller.addError(e);
       }
@@ -51,7 +53,7 @@ class PodService {
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          final pod = await getPodDetails(kubernetesClient, namespace, podName);
+          final pod = await getPodDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, podName);
           if (!controller.isClosed) controller.add(pod);
         } catch (e) {
           debugPrint('Error fetching initial pod details: $e');
@@ -109,7 +111,8 @@ class PodService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedPods = await fetchPods(kubernetesClient, namespaces);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedPods = await fetchPods(client, namespaces);
         if (_podsHaveChanged(currentPods, updatedPods)) {
           currentPods = updatedPods;
           if (!controller.isClosed) controller.add(updatedPods);
@@ -125,7 +128,7 @@ class PodService {
     controller = StreamController<List<PodInfo>>(
       onListen: () async {
         try {
-          currentPods = await fetchPods(kubernetesClient, namespaces);
+          currentPods = await fetchPods(AuthRefreshManager().currentClient ?? kubernetesClient, namespaces);
           if (!controller.isClosed) controller.add(currentPods);
         } catch (e) {
           debugPrint('Error fetching initial pods: $e');
@@ -239,7 +242,8 @@ class PodService {
     StreamController<List<dynamic>> controller,
   ) async {
     try {
-      final coreV1Api = kubernetesClient.client.getCoreV1Api();
+      final effectiveClient = AuthRefreshManager().currentClient ?? kubernetesClient;
+      final coreV1Api = effectiveClient.client.getCoreV1Api();
       final podResponse = await coreV1Api.readNamespacedPod(
         name: podName,
         namespace: namespace,
@@ -380,7 +384,8 @@ class PodService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedEvents = await fetchPodEvents(kubernetesClient, namespace, podName);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedEvents = await fetchPodEvents(client, namespace, podName);
         if (_eventsHaveChanged(currentEvents, updatedEvents)) {
           currentEvents = updatedEvents;
           if (!controller.isClosed) controller.add(updatedEvents);
@@ -396,7 +401,7 @@ class PodService {
     controller = StreamController<List<PodEvent>>(
       onListen: () async {
         try {
-          currentEvents = await fetchPodEvents(kubernetesClient, namespace, podName);
+          currentEvents = await fetchPodEvents(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, podName);
           if (!controller.isClosed) controller.add(currentEvents);
         } catch (e) {
           debugPrint('Error fetching initial pod events: $e');

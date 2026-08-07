@@ -9,6 +9,7 @@ enum ResourceType {
   deployments,
   cronJobs,
   secrets,
+  services,
   customResource,
 }
 
@@ -140,6 +141,14 @@ class _ResourceMenuState extends State<ResourceMenu> {
             icon: Icons.lock,
             label: 'Secrets',
             resourceType: ResourceType.secrets,
+          ),
+
+          // Services menu item
+          _buildMenuItem(
+            context: context,
+            icon: Icons.network_check,
+            label: 'Services',
+            resourceType: ResourceType.services,
           ),
 
           const Divider(height: 1),

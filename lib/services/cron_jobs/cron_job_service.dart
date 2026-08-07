@@ -38,10 +38,12 @@ class CronJobService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedCronJob = await getCronJobDetails(kubernetesClient, namespace, cronJobName);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedCronJob = await getCronJobDetails(client, namespace, cronJobName);
         if (!controller.isClosed) controller.add(updatedCronJob);
       } catch (e) {
         debugPrint('Error polling for cron job detail updates: $e');
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
         if (ConnectionErrorManager().reportConnectionError(e)) return;
         if (!controller.isClosed) controller.addError(e);
       }
@@ -50,7 +52,7 @@ class CronJobService {
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          final cronJob = await getCronJobDetails(kubernetesClient, namespace, cronJobName);
+          final cronJob = await getCronJobDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, cronJobName);
           if (!controller.isClosed) controller.add(cronJob);
         } catch (e) {
           debugPrint('Error fetching initial cron job details: $e');

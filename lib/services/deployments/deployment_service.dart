@@ -235,7 +235,8 @@ class DeploymentService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedDeployment = await getDeploymentDetails(kubernetesClient, namespace, deploymentName);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedDeployment = await getDeploymentDetails(client, namespace, deploymentName);
         if (!controller.isClosed) controller.add(updatedDeployment);
       } catch (e) {
         debugPrint('Error polling for deployment detail updates: $e');
@@ -248,7 +249,7 @@ class DeploymentService {
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          final deployment = await getDeploymentDetails(kubernetesClient, namespace, deploymentName);
+          final deployment = await getDeploymentDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, deploymentName);
           if (!controller.isClosed) controller.add(deployment);
         } catch (e) {
           debugPrint('Error fetching initial deployment details: $e');

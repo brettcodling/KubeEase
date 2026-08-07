@@ -19,13 +19,14 @@ class ConnectionException implements Exception {
       return true;
     }
 
-    // Check for DioException connection/timeout errors
+    // Check for DioException connection/timeout errors.
+    // [bad response] is intentionally excluded — it covers all non-2xx HTTP
+    // responses (including 401), which are API/auth errors, not connection failures.
     if (errorString.contains('dioexception')) {
       return errorString.contains('[connection timeout]') ||
           errorString.contains('[receive timeout]') ||
           errorString.contains('[send timeout]') ||
           errorString.contains('[connection error]') ||
-          errorString.contains('[bad response]') ||
           errorString.contains('[cancel]');
     }
 

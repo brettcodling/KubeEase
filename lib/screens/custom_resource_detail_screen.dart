@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../models/custom_resource_info.dart';
 import '../services/custom_resources/custom_resource_service.dart';
+import '../widgets/debug_menu_button.dart';
 
 /// Screen that displays detailed information about a Kubernetes Custom Resource
 class CustomResourceDetailScreen extends StatefulWidget {
@@ -105,6 +106,7 @@ class _CustomResourceDetailScreenState extends State<CustomResourceDetailScreen>
         title: Text(widget.resourceName),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          DebugMenuButton(kubernetesClient: widget.kubernetesClient),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',

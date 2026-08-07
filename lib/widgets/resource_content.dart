@@ -6,16 +6,19 @@ import 'pods_list.dart';
 import 'deployments_list.dart';
 import 'cron_jobs_list.dart';
 import 'secrets_list.dart';
+import 'services_list.dart';
 import 'custom_resources_list.dart';
 import '../models/pod_info.dart';
 import '../models/deployment_info.dart';
 import '../models/cron_job_info.dart';
 import '../models/secret_info.dart';
+import '../models/service_info.dart';
 import '../models/custom_resource_info.dart';
 import '../services/pods/pod_service.dart';
 import '../services/deployments/deployment_service.dart';
 import '../services/cron_jobs/cron_job_service.dart';
 import '../services/secrets/secret_service.dart';
+import '../services/services/service_service.dart';
 import '../services/custom_resources/custom_resource_service.dart';
 
 /// Main content area widget that displays the selected resource type
@@ -74,6 +77,13 @@ enum SecretSortField {
   age,
 }
 
+/// Enum for service sort fields
+enum ServiceSortField {
+  name,
+  namespace,
+  age,
+}
+
 /// Enum for custom resource sort fields
 enum CustomResourceSortField {
   name,
@@ -108,6 +118,11 @@ class _ResourceContentState extends State<ResourceContent> {
   StreamSubscription<List<SecretInfo>>? _secretStreamSubscription;
   SecretSortField _secretSortField = SecretSortField.name;
 
+  // Services state
+  List<ServiceInfo> _services = [];
+  StreamSubscription<List<ServiceInfo>>? _serviceStreamSubscription;
+  ServiceSortField _serviceSortField = ServiceSortField.name;
+
   // Custom Resources state
   List<CustomResourceInfo> _customResources = [];
   StreamSubscription<List<CustomResourceInfo>>? _customResourceStreamSubscription;
@@ -128,17 +143,24 @@ class _ResourceContentState extends State<ResourceContent> {
   @override
   void didUpdateWidget(ResourceContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Restart watching if resource type, namespaces, kubernetes client, or custom resource changed
-    if (oldWidget.resourceType != widget.resourceType ||
+
+    final resourceChanged = oldWidget.resourceType != widget.resourceType ||
         oldWidget.selectedNamespaces != widget.selectedNamespaces ||
-        oldWidget.kubernetesClient != widget.kubernetesClient ||
-        oldWidget.selectedCustomResource != widget.selectedCustomResource) {
-      // Cancel all existing subscriptions before starting new ones
+        oldWidget.selectedCustomResource != widget.selectedCustomResource;
+    final clientChanged = oldWidget.kubernetesClient != widget.kubernetesClient;
+
+    if (resourceChanged || clientChanged) {
       _cancelAllSubscriptions();
-      // Clear search when switching resource types, namespaces, or contexts
-      _searchController.clear();
-      _searchQuery = '';
-      _startWatchingResources();
+      if (resourceChanged) {
+        // Real context/namespace/type switch — clear search and list data.
+        _searchController.clear();
+        _searchQuery = '';
+        _startWatchingResources(clearData: true);
+      } else {
+        // Client-only refresh (e.g. token rotation) — preserve existing data
+        // and filters so the user's view is not disrupted.
+        _startWatchingResources(clearData: false);
+      }
     }
   }
 
@@ -161,6 +183,8 @@ class _ResourceContentState extends State<ResourceContent> {
     _cronJobStreamSubscription = null;
     _secretStreamSubscription?.cancel();
     _secretStreamSubscription = null;
+    _serviceStreamSubscription?.cancel();
+    _serviceStreamSubscription = null;
     _customResourceStreamSubscription?.cancel();
     _customResourceStreamSubscription = null;
   }
@@ -175,29 +199,35 @@ class _ResourceContentState extends State<ResourceContent> {
     _startWatchingResources();
   }
 
-  /// Starts watching resources based on the selected resource type
-  void _startWatchingResources() {
+  /// Starts watching resources based on the selected resource type.
+  /// [clearData] — when true, clears existing list data before subscribing
+  /// (used on resource/namespace switches). When false (token refresh), the
+  /// existing data stays visible until the new stream delivers results.
+  void _startWatchingResources({bool clearData = true}) {
     switch (widget.resourceType) {
       case ResourceType.pods:
-        _watchPods();
+        _watchPods(clearData: clearData);
         break;
       case ResourceType.deployments:
-        _watchDeployments();
+        _watchDeployments(clearData: clearData);
         break;
       case ResourceType.cronJobs:
-        _watchCronJobs();
+        _watchCronJobs(clearData: clearData);
         break;
       case ResourceType.secrets:
-        _watchSecrets();
+        _watchSecrets(clearData: clearData);
+        break;
+      case ResourceType.services:
+        _watchServices(clearData: clearData);
         break;
       case ResourceType.customResource:
-        _watchCustomResources();
+        _watchCustomResources(clearData: clearData);
         break;
     }
   }
 
   /// Watches pods from Kubernetes using a stream
-  void _watchPods() {
+  void _watchPods({bool clearData = true}) {
     // Cancel any existing subscription
     _podStreamSubscription?.cancel();
 
@@ -205,7 +235,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _pods = [];
+        if (clearData) _pods = [];
       });
     }
 
@@ -235,7 +265,7 @@ class _ResourceContentState extends State<ResourceContent> {
   }
 
   /// Watches deployments from Kubernetes using a stream
-  void _watchDeployments() {
+  void _watchDeployments({bool clearData = true}) {
     // Cancel any existing subscription
     _deploymentStreamSubscription?.cancel();
 
@@ -243,7 +273,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _deployments = [];
+        if (clearData) _deployments = [];
       });
     }
 
@@ -273,7 +303,7 @@ class _ResourceContentState extends State<ResourceContent> {
   }
 
   /// Watches cron jobs from Kubernetes using a stream
-  void _watchCronJobs() {
+  void _watchCronJobs({bool clearData = true}) {
     // Cancel any existing subscription
     _cronJobStreamSubscription?.cancel();
 
@@ -281,7 +311,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _cronJobs = [];
+        if (clearData) _cronJobs = [];
       });
     }
 
@@ -311,7 +341,7 @@ class _ResourceContentState extends State<ResourceContent> {
   }
 
   /// Watches secrets from Kubernetes using a stream
-  void _watchSecrets() {
+  void _watchSecrets({bool clearData = true}) {
     // Cancel any existing subscription
     _secretStreamSubscription?.cancel();
 
@@ -319,7 +349,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _secrets = [];
+        if (clearData) _secrets = [];
       });
     }
 
@@ -348,8 +378,46 @@ class _ResourceContentState extends State<ResourceContent> {
     );
   }
 
+  /// Watches services from Kubernetes using a stream
+  void _watchServices({bool clearData = true}) {
+    // Cancel any existing subscription
+    _serviceStreamSubscription?.cancel();
+
+    // Set loading state
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        if (clearData) _services = [];
+      });
+    }
+
+    // Subscribe to the service watch stream
+    _serviceStreamSubscription = ServiceService.watchServices(
+      widget.kubernetesClient,
+      widget.selectedNamespaces,
+    ).listen(
+      (services) {
+        // Update the service list when new data arrives
+        if (mounted) {
+          setState(() {
+            _services = services;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        debugPrint('Error watching services: $error');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      },
+    );
+  }
+
   /// Watches custom resources from Kubernetes using a stream
-  void _watchCustomResources() {
+  void _watchCustomResources({bool clearData = true}) {
     // Cancel any existing subscription
     _customResourceStreamSubscription?.cancel();
 
@@ -357,7 +425,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (widget.selectedCustomResource == null) {
       if (mounted) {
         setState(() {
-          _customResources = [];
+          if (clearData) _customResources = [];
           _isLoading = false;
         });
       }
@@ -368,7 +436,7 @@ class _ResourceContentState extends State<ResourceContent> {
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _customResources = [];
+        if (clearData) _customResources = [];
       });
     }
 
@@ -561,6 +629,39 @@ class _ResourceContentState extends State<ResourceContent> {
     return filteredSecrets;
   }
 
+  /// Filters and sorts the service list based on search query, sort field and direction
+  List<ServiceInfo> _getSortedServices() {
+    // First filter by search query
+    var filteredServices = _services.where((service) {
+      if (_searchQuery.isEmpty) return true;
+      final query = _searchQuery.toLowerCase();
+      return service.name.toLowerCase().contains(query) ||
+          service.namespace.toLowerCase().contains(query);
+    }).toList();
+
+    // Then sort
+    filteredServices.sort((a, b) {
+      int comparison;
+
+      switch (_serviceSortField) {
+        case ServiceSortField.name:
+          comparison = a.name.compareTo(b.name);
+          break;
+        case ServiceSortField.namespace:
+          comparison = a.namespace.compareTo(b.namespace);
+          break;
+        case ServiceSortField.age:
+          comparison = (a.age ?? '').compareTo(b.age ?? '');
+          break;
+      }
+
+      // Reverse if descending
+      return _sortDirection == SortDirection.ascending ? comparison : -comparison;
+    });
+
+    return filteredServices;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -661,6 +762,16 @@ class _ResourceContentState extends State<ResourceContent> {
           onPauseWatching: _pauseWatching,
           onResumeWatching: _resumeWatching,
         );
+      case ResourceType.services:
+        // Use sorted services
+        final sortedServices = _getSortedServices();
+        return ServicesList(
+          services: sortedServices,
+          isLoading: _isLoading,
+          kubernetesClient: widget.kubernetesClient,
+          onPauseWatching: _pauseWatching,
+          onResumeWatching: _resumeWatching,
+        );
       case ResourceType.customResource:
         // Use filtered and sorted custom resources
         final sortedResources = _getSortedCustomResources();
@@ -752,6 +863,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return 'schedule';
       case ResourceType.secrets:
         return 'type';
+      case ResourceType.services:
+        return 'name';
       case ResourceType.customResource:
         return 'kind';
     }
@@ -895,6 +1008,25 @@ class _ResourceContentState extends State<ResourceContent> {
             }
           },
         );
+      case ResourceType.services:
+        return DropdownButton<ServiceSortField>(
+          value: _serviceSortField,
+          underline: Container(),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          borderRadius: BorderRadius.circular(8),
+          items: const [
+            DropdownMenuItem(value: ServiceSortField.name, child: Text('Name')),
+            DropdownMenuItem(value: ServiceSortField.namespace, child: Text('Namespace')),
+            DropdownMenuItem(value: ServiceSortField.age, child: Text('Age')),
+          ],
+          onChanged: (ServiceSortField? newValue) {
+            if (newValue != null) {
+              setState(() {
+                _serviceSortField = newValue;
+              });
+            }
+          },
+        );
       case ResourceType.customResource:
         return DropdownButton<CustomResourceSortField>(
           value: _customResourceSortField,
@@ -928,6 +1060,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return Icons.schedule;
       case ResourceType.secrets:
         return Icons.lock;
+      case ResourceType.services:
+        return Icons.network_check;
       case ResourceType.customResource:
         return Icons.extension;
     }
@@ -944,6 +1078,8 @@ class _ResourceContentState extends State<ResourceContent> {
         return 'Cron Jobs';
       case ResourceType.secrets:
         return 'Secrets';
+      case ResourceType.services:
+        return 'Services';
       case ResourceType.customResource:
         return widget.selectedCustomResource?.kind ?? 'Custom Resource';
     }

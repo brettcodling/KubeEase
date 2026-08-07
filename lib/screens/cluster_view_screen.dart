@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/kubernetes_service.dart';
@@ -8,6 +7,7 @@ import '../services/connection_error_manager.dart';
 import '../services/auth_refresh_manager.dart';
 import '../services/preferences_service.dart';
 import '../widgets/context_drawer.dart';
+import '../widgets/debug_menu_button.dart';
 import '../widgets/namespace_drawer.dart';
 import '../widgets/resource_menu.dart';
 import '../widgets/resource_content.dart';
@@ -71,20 +71,23 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     return KubernetesService.pingCluster(client);
   }
 
-  /// Refreshes the Kubernetes client when authentication token expires
-  /// This is called by AuthRefreshManager when a 401 error is detected
+  /// Refreshes the Kubernetes client when authentication token expires.
+  /// Called by [AuthRefreshManager] when a 401 error is detected.
+  /// Restarts the namespace stream so it picks up the new client immediately.
   Future<(Kubernetes, Kubeconfig)> _refreshKubernetesClient() async {
     debugPrint('🔄 Refreshing Kubernetes client due to token expiration...');
 
-    // Reinitialize the Kubernetes client (this will fetch fresh tokens)
     final (client, config) = await KubernetesService.initialize();
 
-    // Update the state with the new client
     if (mounted) {
       setState(() {
         _kubernetesClient = client;
         _kubeconfig = config;
       });
+      // Restart the namespace stream with the new client.
+      // ResourceContent.didUpdateWidget detects the client change and
+      // restarts all resource streams automatically.
+      _loadNamespaces();
     }
 
     debugPrint('✅ Kubernetes client refreshed successfully');
@@ -181,17 +184,11 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       onError: (error) async {
         debugPrint('Error loading namespaces: $error');
 
-        // Check if this is a 401 error (expired token) and refresh if needed
+        // 401: _refreshKubernetesClient already calls _loadNamespaces() so
+        // no further action is needed here.
         final wasHandled = await AuthRefreshManager().checkAndRefreshIfNeeded(error);
+        if (wasHandled) return;
 
-        if (wasHandled) {
-          // Token was refreshed, retry loading namespaces
-          debugPrint('🔄 Retrying namespace load after token refresh...');
-          _loadNamespaces();
-          return;
-        }
-
-        // Not a 401 error, handle normally
         if (mounted) {
           setState(() {
             _isLoadingNamespaces = false;
@@ -245,6 +242,9 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
     try {
       // Switch to the new context
       final (client, config) = await KubernetesService.switchContext(contextName, _kubeconfig!);
+      // Discard any client cached from a previous token refresh so polling
+      // closures don't accidentally use a client from the old context.
+      AuthRefreshManager().clearCurrentClient();
       setState(() {
         _kubernetesClient = client;
         _kubeconfig = config;
@@ -321,6 +321,7 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
       final (client, config) = await KubernetesService.initialize();
 
       if (mounted) {
+        AuthRefreshManager().clearCurrentClient();
         setState(() {
           _kubernetesClient = client;
           _kubeconfig = config;
@@ -412,67 +413,8 @@ class _ClusterViewScreenState extends State<ClusterViewScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // DEBUG: Menu with debug options (only in debug mode)
-          if (kDebugMode)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.bug_report, color: Colors.orange),
-              tooltip: 'Debug Menu',
-              itemBuilder: (context) {
-                return [
-                  PopupMenuItem<String>(
-                    enabled: false,
-                    child: Text(
-                      'Debug Options',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem<String>(
-                    value: 'simulate_401',
-                    child: Row(
-                      children: [
-                        Icon(Icons.lock_clock, size: 18),
-                        SizedBox(width: 8),
-                        Text('Simulate 401 Token Expiration'),
-                      ],
-                    ),
-                  ),
-                  // Add more debug options here in the future
-                  // const PopupMenuItem<String>(
-                  //   value: 'another_debug_option',
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.debug, size: 18),
-                  //       SizedBox(width: 8),
-                  //       Text('Another Debug Option'),
-                  //     ],
-                  //   ),
-                  // ),
-                ];
-              },
-              onSelected: (value) async {
-                switch (value) {
-                  case 'simulate_401':
-                    debugPrint('🧪 User triggered token expiration simulation');
-                    await AuthRefreshManager().simulateTokenExpiration();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('🧪 Simulated 401 error - check console for refresh logs'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                    break;
-                  // Add more cases here for future debug options
-                  // case 'another_debug_option':
-                  //   // Handle another debug option
-                  //   break;
-                }
-              },
-            ),
+          if (_kubernetesClient != null)
+            DebugMenuButton(kubernetesClient: _kubernetesClient!),
           // Port forward notification icon
           ListenableBuilder(
             listenable: PortForwardManager(),

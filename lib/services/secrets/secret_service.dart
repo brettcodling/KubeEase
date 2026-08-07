@@ -38,7 +38,8 @@ class SecretService {
     void poll() async {
       if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedSecret = await getSecretDetails(kubernetesClient, namespace, secretName);
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedSecret = await getSecretDetails(client, namespace, secretName);
         if (!controller.isClosed) controller.add(updatedSecret);
       } catch (e) {
         debugPrint('Error polling for secret detail updates: $e');
@@ -51,7 +52,7 @@ class SecretService {
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          final secret = await getSecretDetails(kubernetesClient, namespace, secretName);
+          final secret = await getSecretDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, secretName);
           if (!controller.isClosed) controller.add(secret);
         } catch (e) {
           debugPrint('Error fetching initial secret details: $e');
