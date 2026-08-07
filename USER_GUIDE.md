@@ -637,6 +637,12 @@ Port forwarding allows you to access container ports on your local machine.
 4. Port forward starts immediately
 5. Badge appears in app bar showing active forwards count
 
+#### From Service Detail Screen
+1. Navigate to the service details
+2. Click the **forward arrow icon** (→) next to the port number
+3. Port forward starts immediately
+4. Badge appears in app bar showing active forwards count
+
 ### Viewing Active Port Forwards
 
 1. Click the **port forward badge** in the top app bar

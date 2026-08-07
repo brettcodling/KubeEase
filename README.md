@@ -237,9 +237,9 @@ lib/
 ### Key Dependencies
 
 - **k8s** (1.27.0+dev.2) - Kubernetes API client for Dart
-- **xterm** (3.5.0) - Terminal emulator widget
-- **flutter_pty** (0.3.0) - Pseudo-terminal support for interactive shells
-- **window_manager** (0.4.2) - Desktop window management
+- **xterm** (4.0.0) - Terminal emulator widget
+- **flutter_pty** (0.4.2) - Pseudo-terminal support for interactive shells
+- **window_manager** (0.5.1) - Desktop window management
 - **file_picker** (11.0.2) - Native file picker for upload/download
 - **watcher** (1.2.0) - File system monitoring for kubeconfig changes
 - **fl_chart** (1.1.1) - Beautiful charts for metrics visualization
@@ -277,9 +277,10 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Support for custom resources (CRDs)
 - [x] Automatic recovery from transient connection failures
 - [x] ServiceAccount and cloud identity (GCP/AWS/Azure) display on workload detail screens
+- [x] Support for Service resource type
 
 ### Planned 🚀
-- [ ] Support for more resource types (Services, ConfigMaps, StatefulSets, etc.)
+- [ ] Support for more resource types (ConfigMaps, StatefulSets, etc.)
 
 ## License
 
