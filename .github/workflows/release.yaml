@@ -33,12 +33,12 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
       
-      - name: Build Flutter app
-        run: flutter build linux --release
-      
       - name: Extract version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build Flutter app
+        run: flutter build linux --release --dart-define=APP_VERSION=${{ steps.get_version.outputs.VERSION }}
       
       - name: Create .deb package structure
         run: |

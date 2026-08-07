@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:k8s/k8s.dart';
 import '../services/secrets/secret_service.dart';
+import '../widgets/debug_menu_button.dart';
 
 /// Screen that displays detailed information about a Kubernetes Secret
 class SecretDetailScreen extends StatefulWidget {
@@ -94,6 +95,7 @@ class _SecretDetailScreenState extends State<SecretDetailScreen> {
         title: Text(widget.secretName),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          DebugMenuButton(kubernetesClient: widget.kubernetesClient),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Delete Secret',

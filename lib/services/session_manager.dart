@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import 'package:xterm/xterm.dart';
-import 'package:pty/pty.dart';
+import 'package:flutter_pty/flutter_pty.dart';
 import '../main.dart';
 
 /// Type of session
@@ -25,9 +25,9 @@ class Session {
 
   // Terminal-specific state (preserved across minimize/restore)
   Terminal? terminal;
-  PseudoTerminal? pty;
+  Pty? pty;
   TerminalController? terminalController;
-  StreamSubscription<String>? ptyOutputSubscription;
+  StreamSubscription<List<int>>? ptyOutputSubscription;
 
   Session({
     required this.id,

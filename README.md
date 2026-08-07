@@ -156,10 +156,11 @@ KubeEase provides real-time monitoring of container resource usage:
 
 KubeEase keeps resource views stable through transient cluster connection issues:
 
-- **Pause/Resume Watchers** - Background streams pause on connection errors and resume in place once the cluster is reachable again, so lists no longer flicker or thrash
-- **Exponential Backoff Probes** - A lightweight health check runs at increasing intervals (1s, 2s, 3s, 5s, 10s) until the cluster responds
-- **Subtle Reconnecting Banner** - A thin banner appears during recovery; the full blocking error dialog is only shown after sustained failure (~30s)
+- **Check-and-Skip Polling** - Each background poller checks `isConnected` before every poll tick; while the cluster is unreachable the tick is simply skipped, preserving the last-known data without any pause/resume machinery
+- **Backoff Health Probes** - A lightweight health check runs at increasing intervals (2s, 5s, 10s, 30s) until the cluster responds
+- **Subtle Reconnecting Banner** - A thin non-blocking banner appears during recovery; the full blocking error dialog is only shown after sustained failure (30s)
 - **Last-Known Data Preserved** - You continue to see the most recent resource data while reconnection is in progress
+- **Manual Retry** - The error dialog's Retry button resets the backoff and immediately kicks off a new probe cycle
 
 This applies to all watched resource types (Pods, Deployments, Secrets, CronJobs, Custom Resources) and to namespace listings.
 
@@ -227,7 +228,7 @@ lib/
 │   ├── kubernetes_service.dart
 │   ├── session_manager.dart
 │   ├── port_forward_manager.dart
-│   ├── connection_error_manager.dart  # Reconnection state machine + watcher registry
+│   ├── connection_error_manager.dart  # Reconnection state machine (connected/reconnecting/failed)
 │   ├── service_accounts/              # Cloud identity resolution from SA annotations
 │   └── pods/
 └── models/                   # Data models
@@ -237,9 +238,9 @@ lib/
 
 - **k8s** (1.27.0+dev.2) - Kubernetes API client for Dart
 - **xterm** (3.5.0) - Terminal emulator widget
-- **pty** (0.3.1) - Pseudo-terminal support for interactive shells
+- **flutter_pty** (0.3.0) - Pseudo-terminal support for interactive shells
 - **window_manager** (0.4.2) - Desktop window management
-- **file_picker** (4.6.1) - Native file picker for upload/download
+- **file_picker** (11.0.2) - Native file picker for upload/download
 - **watcher** (1.2.0) - File system monitoring for kubeconfig changes
 - **fl_chart** (1.1.1) - Beautiful charts for metrics visualization
 
@@ -289,7 +290,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Built with [Flutter](https://flutter.dev/)
 - Kubernetes API client: [k8s](https://pub.dev/packages/k8s)
 - Terminal emulator: [xterm.dart](https://pub.dev/packages/xterm)
-- Pseudo-terminal: [pty](https://pub.dev/packages/pty)
+- Pseudo-terminal: [flutter_pty](https://pub.dev/packages/flutter_pty)
 - File picker: [file_picker](https://pub.dev/packages/file_picker)
 - File watcher: [watcher](https://pub.dev/packages/watcher)
 - Charts: [fl_chart](https://pub.dev/packages/fl_chart)

@@ -26,7 +26,7 @@ class CronJobService {
     }
   }
 
-  /// Watches a specific cron job for updates using periodic polling
+  /// Watches a specific cron job for updates using periodic polling.
   static Stream<dynamic> watchCronJobDetails(
     Kubernetes kubernetesClient,
     String namespace,
@@ -34,78 +34,37 @@ class CronJobService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
-    WatcherHandle? handle;
-    dynamic currentCronJob;
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedCronJob = await getCronJobDetails(kubernetesClient, namespace, cronJobName);
-
-        // Always emit updates for detail views (user wants to see changes)
-        currentCronJob = updatedCronJob;
-        if (!controller.isClosed) {
-          controller.add(updatedCronJob);
-        }
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedCronJob = await getCronJobDetails(client, namespace, cronJobName);
+        if (!controller.isClosed) controller.add(updatedCronJob);
       } catch (e) {
         debugPrint('Error polling for cron job detail updates: $e');
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          currentCronJob = await getCronJobDetails(kubernetesClient, namespace, cronJobName);
-          if (!controller.isClosed) {
-            controller.add(currentCronJob);
-          }
+          final cronJob = await getCronJobDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, cronJobName);
+          if (!controller.isClosed) controller.add(cronJob);
         } catch (e) {
           debugPrint('Error fetching initial cron job details: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
@@ -138,97 +97,48 @@ class CronJobService {
     }
   }
 
-  /// Watches cron jobs from the specified namespaces using periodic polling
-  /// Returns a stream that emits the complete list of cron jobs whenever changes occur
+  /// Watches cron jobs from the specified namespaces using periodic polling.
+  /// Returns a stream that emits the complete list of cron jobs whenever changes occur.
   static Stream<List<CronJobInfo>> watchCronJobs(
     Kubernetes kubernetesClient,
     Set<String> namespaces,
   ) {
     late StreamController<List<CronJobInfo>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<CronJobInfo> currentCronJobs = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated cron jobs
         final updatedCronJobs = await fetchCronJobs(kubernetesClient, namespaces);
-
-        // Only emit if the list has changed
         if (_cronJobsHaveChanged(currentCronJobs, updatedCronJobs)) {
           currentCronJobs = updatedCronJobs;
-          if (!controller.isClosed) {
-            controller.add(updatedCronJobs);
-          }
+          if (!controller.isClosed) controller.add(updatedCronJobs);
         }
       } catch (e) {
         debugPrint('Error polling for cron job updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<CronJobInfo>>(
       onListen: () async {
-        // Emit initial list of cron jobs
         try {
           currentCronJobs = await fetchCronJobs(kubernetesClient, namespaces);
-          if (!controller.isClosed) {
-            controller.add(currentCronJobs);
-          }
+          if (!controller.isClosed) controller.add(currentCronJobs);
         } catch (e) {
           debugPrint('Error fetching initial cron jobs: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );

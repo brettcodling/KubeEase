@@ -7,7 +7,7 @@ class PortForwardSession {
   final String id;
   final String namespace;
   final String podName;
-  final String containerPort;
+  final String port;
   final String localPort;
   final Process process;
   final DateTime startTime;
@@ -16,13 +16,13 @@ class PortForwardSession {
     required this.id,
     required this.namespace,
     required this.podName,
-    required this.containerPort,
+    required this.port,
     required this.localPort,
     required this.process,
     required this.startTime,
   });
 
-  String get displayName => '$podName:$containerPort → localhost:$localPort';
+  String get displayName => '$podName:$port → localhost:$localPort';
 }
 
 /// Manages port forward sessions
@@ -36,21 +36,21 @@ class PortForwardManager extends ChangeNotifier {
   List<PortForwardSession> get sessions => _sessions.values.toList();
 
   /// Check if a port forward exists for a specific pod and port
-  bool isPortForwarded(String namespace, String podName, String containerPort) {
+  bool isPortForwarded(String namespace, String podName, String port) {
     return _sessions.values.any((s) =>
         s.namespace == namespace &&
         s.podName == podName &&
-        s.containerPort == containerPort);
+        s.port == port);
   }
 
   /// Get session for a specific pod and port
-  PortForwardSession? getSessionForPort(String namespace, String podName, String containerPort) {
+  PortForwardSession? getSessionForPort(String namespace, String podName, String port) {
     try {
       return _sessions.values.firstWhere(
         (s) =>
             s.namespace == namespace &&
             s.podName == podName &&
-            s.containerPort == containerPort,
+            s.port == port,
       );
     } catch (e) {
       return null;
@@ -61,10 +61,10 @@ class PortForwardManager extends ChangeNotifier {
   Future<void> startPortForward({
     required String namespace,
     required String podName,
-    required String containerPort,
+    required String port,
     required String localPort,
   }) async {
-    final id = 'pf-$namespace-$podName-$containerPort-$localPort-${DateTime.now().millisecondsSinceEpoch}';
+    final id = 'pf-$namespace-$podName-$port-$localPort-${DateTime.now().millisecondsSinceEpoch}';
 
     // Check if port is already in use
     if (_sessions.values.any((s) => s.localPort == localPort)) {
@@ -80,7 +80,7 @@ class PortForwardManager extends ChangeNotifier {
           '-n',
           namespace,
           podName,
-          '$localPort:$containerPort',
+          '$localPort:$port',
         ],
       );
 
@@ -89,7 +89,7 @@ class PortForwardManager extends ChangeNotifier {
         id: id,
         namespace: namespace,
         podName: podName,
-        containerPort: containerPort,
+        port: port,
         localPort: localPort,
         process: process,
         startTime: DateTime.now(),

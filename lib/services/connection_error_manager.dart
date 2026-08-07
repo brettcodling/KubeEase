@@ -4,102 +4,54 @@ import '../exceptions/connection_exception.dart';
 
 /// Connection state used by [ConnectionErrorManager].
 enum ConnectionState {
-  /// Cluster connection is healthy, watchers poll normally.
+  /// Cluster is reachable; watchers poll normally.
   connected,
 
-  /// A connection error has been detected and we are silently retrying in the
-  /// background while watchers are paused. The UI shows a small banner.
+  /// A connection error was detected; silently probing in the background.
+  /// The UI shows a small non-blocking banner.
   reconnecting,
 
-  /// Reconnection attempts have failed for long enough that we surface the
-  /// full-screen blocking dialog and require manual user action.
+  /// Probing has failed for longer than [_failureThreshold]; the full-screen
+  /// blocking dialog is shown and requires manual user action.
   failed,
 }
 
-/// Handle returned by [ConnectionErrorManager.registerWatcher] so a watcher
-/// can be unregistered when its stream is cancelled.
-class WatcherHandle {
-  WatcherHandle({required this.pause, required this.resume});
-
-  final VoidCallback pause;
-  final VoidCallback resume;
-}
-
-/// Global manager for handling Kubernetes connection errors.
+/// Global singleton that tracks Kubernetes connection health.
 ///
-/// Watchers register a pause/resume pair. When a connection error is detected
-/// (by any watcher) the manager pauses every watcher and starts probing the
-/// cluster on a back-off schedule. As soon as a probe succeeds the watchers
-/// are resumed — they keep their last successful payload, so lists do not
-/// reset and only re-render when the data has actually changed.
+/// Watchers simply call [reportConnectionError] when they catch a network
+/// error, and check [isConnected] before each poll so they silently skip
+/// calls while the cluster is unreachable. No watcher registration or
+/// pause/resume callbacks are needed.
 ///
-/// Only if reconnection keeps failing past [_failureThreshold] do we escalate
-/// to the blocking error dialog.
+/// A lightweight health-check ([setHealthCheck]) is probed on a back-off
+/// schedule. When the probe succeeds the state returns to [connected] and
+/// the next poll cycle resumes automatically.
 class ConnectionErrorManager extends ChangeNotifier {
   static final ConnectionErrorManager _instance = ConnectionErrorManager._internal();
   factory ConnectionErrorManager() => _instance;
   ConnectionErrorManager._internal();
 
-  // Back-off schedule for reconnection attempts (clamped at the last value).
   static const List<Duration> _backoff = [
-    Duration(seconds: 1),
     Duration(seconds: 2),
-    Duration(seconds: 3),
     Duration(seconds: 5),
     Duration(seconds: 10),
+    Duration(seconds: 30),
   ];
 
-  // After this much continuous failure we escalate to the full dialog.
   static const Duration _failureThreshold = Duration(seconds: 30);
 
   ConnectionState _state = ConnectionState.connected;
   ConnectionException? _currentError;
-
-  final List<WatcherHandle> _watchers = [];
-
-  VoidCallback? _onRetry;
-  Future<bool> Function()? _healthCheck;
-
-  Timer? _retryTimer;
-  int _retryAttempt = 0;
+  Timer? _probeTimer;
+  int _probeAttempt = 0;
   DateTime? _firstFailureTime;
+  Future<bool> Function()? _healthCheck;
 
   ConnectionState get state => _state;
   ConnectionException? get currentError => _currentError;
+  bool get isConnected => _state == ConnectionState.connected;
   bool get isReconnecting => _state == ConnectionState.reconnecting;
   bool get isShowingError => _state == ConnectionState.failed;
-
-  /// Registers pause/resume callbacks for a watcher. The returned handle
-  /// must be passed to [unregisterWatcher] when the watcher is cancelled.
-  WatcherHandle registerWatcher({
-    required VoidCallback pause,
-    required VoidCallback resume,
-  }) {
-    final handle = WatcherHandle(pause: pause, resume: resume);
-    _watchers.add(handle);
-    // If we are already in a degraded state, pause this watcher immediately
-    // so it does not start hammering a broken connection.
-    if (_state != ConnectionState.connected) {
-      try {
-        pause();
-      } catch (e) {
-        debugPrint('Error pausing newly registered watcher: $e');
-      }
-    }
-    return handle;
-  }
-
-  /// Unregisters a previously registered watcher handle.
-  void unregisterWatcher(WatcherHandle? handle) {
-    if (handle == null) return;
-    _watchers.remove(handle);
-  }
-
-  /// Sets the manual retry callback used when the user clicks "Retry" on the
-  /// blocking dialog.
-  void setRetryCallback(VoidCallback callback) {
-    _onRetry = callback;
-  }
 
   /// Registers the lightweight health-check used to probe whether the cluster
   /// is reachable again. Should return `true` when the connection is healthy.
@@ -107,148 +59,92 @@ class ConnectionErrorManager extends ChangeNotifier {
     _healthCheck = healthCheck;
   }
 
-  /// Reports a connection error from a watcher. Returns `true` if the error
-  /// was a connection error and was handled (caller should stop polling).
-  bool checkAndHandleError(Object error) {
+  /// Called by watchers when they catch an error. Returns `true` if the error
+  /// was a connection error (caller can skip further error handling).
+  ///
+  /// When transitioning from [connected] → [reconnecting] for the first time,
+  /// the back-off probe loop is started automatically.
+  bool reportConnectionError(Object error) {
     final connectionError = ConnectionException.fromError(error);
-    if (connectionError != null) {
-      _enterReconnecting(connectionError);
-      return true;
-    }
-    return false;
-  }
-
-  /// Enters the reconnecting state and starts the back-off retry loop.
-  void _enterReconnecting(ConnectionException error) {
-    _currentError = error;
+    if (connectionError == null) return false;
 
     if (_state == ConnectionState.connected) {
-      debugPrint('Connection error detected, entering reconnecting state: ${error.message}');
+      debugPrint('Connection error detected: ${connectionError.message}');
       _state = ConnectionState.reconnecting;
+      _currentError = connectionError;
       _firstFailureTime = DateTime.now();
-      _retryAttempt = 0;
-      _pauseAllWatchers();
+      _probeAttempt = 0;
       notifyListeners();
-      _scheduleNextProbe();
-    } else if (_state == ConnectionState.reconnecting) {
-      // Already reconnecting; just make sure a probe is scheduled.
-      if (_retryTimer == null || !_retryTimer!.isActive) {
-        _scheduleNextProbe();
-      }
+      _scheduleProbe();
     }
-    // If already in `failed`, leave the dialog up.
+    // Already reconnecting or failed — keep existing state.
+    return true;
   }
 
-  void _pauseAllWatchers() {
-    for (final w in List<WatcherHandle>.from(_watchers)) {
-      try {
-        w.pause();
-      } catch (e) {
-        debugPrint('Error pausing watcher: $e');
-      }
-    }
+  void _scheduleProbe() {
+    _probeTimer?.cancel();
+    final delay = _backoff[_probeAttempt.clamp(0, _backoff.length - 1)];
+    _probeAttempt++;
+    _probeTimer = Timer(delay, _probe);
   }
 
-  void _resumeAllWatchers() {
-    for (final w in List<WatcherHandle>.from(_watchers)) {
-      try {
-        w.resume();
-      } catch (e) {
-        debugPrint('Error resuming watcher: $e');
-      }
-    }
-  }
-
-  void _scheduleNextProbe() {
-    final delay = _backoff[_retryAttempt.clamp(0, _backoff.length - 1)];
-    _retryAttempt++;
-    _retryTimer?.cancel();
-    _retryTimer = Timer(delay, _runProbe);
-  }
-
-  Future<void> _runProbe() async {
+  Future<void> _probe() async {
     if (_state != ConnectionState.reconnecting) return;
 
     bool ok = false;
     try {
       ok = await (_healthCheck?.call() ?? Future.value(false));
-    } catch (e) {
-      debugPrint('Health check threw: $e');
-      ok = false;
-    }
+    } catch (_) {}
 
     if (_state != ConnectionState.reconnecting) return;
 
     if (ok) {
-      _onReconnected();
+      debugPrint('Connection restored');
+      _state = ConnectionState.connected;
+      _currentError = null;
+      _probeAttempt = 0;
+      _firstFailureTime = null;
+      _probeTimer = null;
+      notifyListeners();
+    } else if (DateTime.now().difference(_firstFailureTime!) >= _failureThreshold) {
+      debugPrint('Reconnection failed for too long, showing error dialog');
+      _state = ConnectionState.failed;
+      _probeTimer = null;
+      notifyListeners();
     } else {
-      final firstFailure = _firstFailureTime;
-      if (firstFailure != null &&
-          DateTime.now().difference(firstFailure) >= _failureThreshold) {
-        _escalateToFailed();
-      } else {
-        _scheduleNextProbe();
-      }
+      _scheduleProbe();
     }
   }
 
-  void _onReconnected() {
-    debugPrint('Connection restored, resuming watchers');
-    _retryTimer?.cancel();
-    _retryTimer = null;
-    _state = ConnectionState.connected;
-    _currentError = null;
-    _retryAttempt = 0;
-    _firstFailureTime = null;
-    _resumeAllWatchers();
-    notifyListeners();
-  }
-
-  void _escalateToFailed() {
-    debugPrint('Reconnection failed for too long, showing blocking dialog');
-    _retryTimer?.cancel();
-    _retryTimer = null;
-    _state = ConnectionState.failed;
-    notifyListeners();
-  }
-
-  /// Manual retry triggered by the user from the full error dialog.
+  /// User-triggered retry from the full error dialog.
   void retry() {
     debugPrint('Manual retry requested');
-    _retryTimer?.cancel();
-    _retryTimer = null;
+    _probeTimer?.cancel();
     _state = ConnectionState.reconnecting;
-    _retryAttempt = 0;
-    _firstFailureTime = DateTime.now();
     _currentError = null;
+    _probeAttempt = 0;
+    _firstFailureTime = DateTime.now();
     notifyListeners();
-
-    // Give the host a chance to fully reinitialize (new client, etc.).
-    _onRetry?.call();
-
-    // Also probe immediately.
-    _scheduleNextProbe();
+    _scheduleProbe();
   }
 
-  /// Clears the current error without retrying. Used when the host has
-  /// successfully re-established a connection itself (e.g. context switch).
+  /// Clears error state without retrying. Call this after a successful
+  /// context switch or manual reconnect so watchers resume cleanly.
   void clearError() {
-    _retryTimer?.cancel();
-    _retryTimer = null;
+    _probeTimer?.cancel();
+    _probeTimer = null;
     if (_state != ConnectionState.connected) {
       _state = ConnectionState.connected;
       _currentError = null;
-      _retryAttempt = 0;
+      _probeAttempt = 0;
       _firstFailureTime = null;
-      _resumeAllWatchers();
       notifyListeners();
     }
   }
 
   @override
   void dispose() {
-    _retryTimer?.cancel();
-    _watchers.clear();
+    _probeTimer?.cancel();
     super.dispose();
   }
 }

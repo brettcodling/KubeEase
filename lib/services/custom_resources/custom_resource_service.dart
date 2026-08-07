@@ -116,7 +116,7 @@ class CustomResourceService {
     }
   }
 
-  /// Watches custom resources of a specific CRD using periodic polling
+  /// Watches custom resources of a specific CRD using periodic polling.
   static Stream<List<CustomResourceInfo>> watchCustomResources(
     Kubernetes kubernetesClient,
     CustomResourceDefinitionInfo crd,
@@ -124,81 +124,40 @@ class CustomResourceService {
   ) {
     late StreamController<List<CustomResourceInfo>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<CustomResourceInfo> currentResources = [];
-    bool isFirstFetch = true;
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated custom resources
-        final updatedResources = await fetchCustomResources(
-          kubernetesClient,
-          crd,
-          namespaces,
-        );
-
-        // Always emit on first fetch, then only emit if the list has changed
-        if (isFirstFetch || _resourcesHaveChanged(currentResources, updatedResources)) {
-          isFirstFetch = false;
+        final updatedResources = await fetchCustomResources(kubernetesClient, crd, namespaces);
+        if (_resourcesHaveChanged(currentResources, updatedResources)) {
           currentResources = updatedResources;
-          if (!controller.isClosed) {
-            controller.add(updatedResources);
-          }
+          if (!controller.isClosed) controller.add(updatedResources);
         }
       } catch (e) {
         debugPrint('Error polling for custom resource updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
     }
 
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
-    }
-
     controller = StreamController<List<CustomResourceInfo>>(
-      onListen: () {
-        // Initial fetch
-        poll();
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+      onListen: () async {
+        try {
+          currentResources = await fetchCustomResources(kubernetesClient, crd, namespaces);
+          if (!controller.isClosed) controller.add(currentResources);
+        } catch (e) {
+          debugPrint('Error fetching initial custom resources: $e');
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
+          }
+        }
+        timer = Timer.periodic(const Duration(seconds: 5), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );

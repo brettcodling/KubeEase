@@ -19,6 +19,12 @@ class AuthRefreshManager extends ChangeNotifier {
   /// This should be set by the main screen to update its client instance
   Future<(Kubernetes, Kubeconfig)> Function()? _refreshCallback;
 
+  /// The most-recently refreshed Kubernetes client.
+  /// Polling closures use this via `AuthRefreshManager().currentClient ?? kubernetesClient`
+  /// so that detail screens still on the navigator stack pick up the new client
+  /// without needing to be rebuilt.
+  Kubernetes? _currentClient;
+
   /// Whether a refresh is currently in progress
   bool _isRefreshing = false;
 
@@ -61,7 +67,8 @@ class AuthRefreshManager extends ChangeNotifier {
 
       // Call the refresh callback if registered
       if (_refreshCallback != null) {
-        await _refreshCallback!();
+        final (client, _) = await _refreshCallback!();
+        _currentClient = client;
         debugPrint('✅ Kubernetes client refreshed successfully');
         notifyListeners();
         return true;
@@ -75,6 +82,16 @@ class AuthRefreshManager extends ChangeNotifier {
     } finally {
       _isRefreshing = false;
     }
+  }
+
+  /// The latest Kubernetes client produced by a token refresh.
+  /// Returns null before any refresh has occurred.
+  Kubernetes? get currentClient => _currentClient;
+
+  /// Clears the stored client so polling closures fall back to the
+  /// client passed at stream creation time (used after a context switch).
+  void clearCurrentClient() {
+    _currentClient = null;
   }
 
   /// Get the time since last refresh
@@ -98,6 +115,20 @@ class AuthRefreshManager extends ChangeNotifier {
 
     // Trigger the refresh mechanism
     await checkAndRefreshIfNeeded(fakeError);
+  }
+
+  /// DEBUG ONLY: Replaces the bearer token on the active client(s) with a
+  /// garbage value so the *next real API call* receives a genuine 401 from the
+  /// server. This accurately replicates what happens when a GKE/EKS token
+  /// expires naturally — unlike [simulateTokenExpiration] which bypasses the
+  /// HTTP layer entirely.
+  void invalidateToken(Kubernetes kubernetesClient) {
+    const garbage = 'INVALID_TOKEN_DEBUG';
+    kubernetesClient.client.setBearerAuth('bearer', garbage);
+    // Also corrupt the cached refreshed client so polling closures that
+    // already switched to it also get the genuine 401.
+    _currentClient?.client.setBearerAuth('bearer', garbage);
+    debugPrint('🧪 DEBUG: Bearer token invalidated — next API call will receive a real 401');
   }
 }
 

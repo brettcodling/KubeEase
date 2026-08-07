@@ -39,12 +39,12 @@ dependencies:
   http: ^1.6.0
   xterm: ^4.0.0
   dartssh2: ^2.13.0
-  pty: ^0.1.1
   window_manager: ^0.5.1
   watcher: ^1.2.0
-  file_picker: ^4.6.1
+  file_picker: ^11.0.2
   shared_preferences: ^2.5.4
   fl_chart: ^1.1.1
+  flutter_pty: ^0.4.2
 
 dev_dependencies:
   flutter_test:

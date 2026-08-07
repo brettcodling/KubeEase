@@ -11,6 +11,7 @@ import '../services/port_forward_manager.dart';
 import '../services/service_accounts/service_account_service.dart';
 import '../models/pod_event.dart';
 import '../models/pod_metrics.dart';
+import '../widgets/debug_menu_button.dart';
 
 /// Screen that displays detailed information about a Kubernetes Pod
 class PodDetailScreen extends StatefulWidget {
@@ -149,6 +150,7 @@ class _PodDetailScreenState extends State<PodDetailScreen> {
         title: Text(widget.podName),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          DebugMenuButton(kubernetesClient: widget.kubernetesClient),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Delete Pod',
@@ -1551,7 +1553,7 @@ class _ContainerDrawerState extends State<_ContainerDrawer> {
       await PortForwardManager().startPortForward(
         namespace: widget.namespace,
         podName: widget.podName,
-        containerPort: containerPort,
+        port: containerPort,
         localPort: localPort,
       );
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:k8s/k8s.dart';
 import '../services/cron_jobs/cron_job_service.dart';
+import '../widgets/debug_menu_button.dart';
 import '../services/service_accounts/service_account_service.dart';
 import '../services/session_manager.dart';
 
@@ -155,6 +156,7 @@ class _CronJobDetailScreenState extends State<CronJobDetailScreen> {
         title: Text(widget.cronJobName),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          DebugMenuButton(kubernetesClient: widget.kubernetesClient),
           IconButton(
             icon: const Icon(Icons.play_arrow),
             tooltip: 'Trigger CronJob Now',

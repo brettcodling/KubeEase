@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.0.0');
+
 /// Left drawer widget for selecting Kubernetes contexts
 class ContextDrawer extends StatelessWidget {
   final List<String> availableContexts;
@@ -65,6 +67,17 @@ class ContextDrawer extends StatelessWidget {
                   );
                 }),
               ],
+            ),
+          ),
+          // Version footer
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Text(
+              'v$appVersion',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
             ),
           ),
         ],

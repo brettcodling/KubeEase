@@ -131,97 +131,48 @@ class DeploymentService {
     }
   }
 
-  /// Watches deployments from the specified namespaces using periodic polling
-  /// Returns a stream that emits the complete list of deployments whenever changes occur
+  /// Watches deployments from the specified namespaces using periodic polling.
+  /// Returns a stream that emits the complete list of deployments whenever changes occur.
   static Stream<List<DeploymentInfo>> watchDeployments(
     Kubernetes kubernetesClient,
     Set<String> namespaces,
   ) {
     late StreamController<List<DeploymentInfo>> controller;
     Timer? timer;
-    WatcherHandle? handle;
     List<DeploymentInfo> currentDeployments = [];
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        // Fetch updated deployments
         final updatedDeployments = await fetchDeployments(kubernetesClient, namespaces);
-
-        // Only emit if the list has changed
         if (_deploymentsHaveChanged(currentDeployments, updatedDeployments)) {
           currentDeployments = updatedDeployments;
-          if (!controller.isClosed) {
-            controller.add(updatedDeployments);
-          }
+          if (!controller.isClosed) controller.add(updatedDeployments);
         }
       } catch (e) {
         debugPrint('Error polling for deployment updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<List<DeploymentInfo>>(
       onListen: () async {
-        // Emit initial list of deployments
         try {
           currentDeployments = await fetchDeployments(kubernetesClient, namespaces);
-          if (!controller.isClosed) {
-            controller.add(currentDeployments);
-          }
+          if (!controller.isClosed) controller.add(currentDeployments);
         } catch (e) {
           debugPrint('Error fetching initial deployments: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
@@ -272,7 +223,7 @@ class DeploymentService {
     }
   }
 
-  /// Watches a specific deployment for updates using periodic polling
+  /// Watches a specific deployment for updates using periodic polling.
   static Stream<dynamic> watchDeploymentDetails(
     Kubernetes kubernetesClient,
     String namespace,
@@ -280,85 +231,37 @@ class DeploymentService {
   ) {
     late StreamController<dynamic> controller;
     Timer? timer;
-    WatcherHandle? handle;
-    dynamic currentDeployment;
-    bool isPaused = false;
 
     void poll() async {
-      if (isPaused) return;
+      if (!ConnectionErrorManager().isConnected) return;
       try {
-        final updatedDeployment = await getDeploymentDetails(kubernetesClient, namespace, deploymentName);
-
-        // Always emit updates for detail views
-        currentDeployment = updatedDeployment;
-        if (!controller.isClosed) {
-          controller.add(updatedDeployment);
-        }
+        final client = AuthRefreshManager().currentClient ?? kubernetesClient;
+        final updatedDeployment = await getDeploymentDetails(client, namespace, deploymentName);
+        if (!controller.isClosed) controller.add(updatedDeployment);
       } catch (e) {
         debugPrint('Error polling for deployment detail updates: $e');
-
-        // Check if this is a 401 error (expired token) and trigger refresh
-        final wasAuthError = await AuthRefreshManager().checkAndRefreshIfNeeded(e);
-        if (wasAuthError) {
-          // Token refresh was triggered
-          return;
-        }
-
-        // Connection error: manager will pause us; data preserved.
-        if (ConnectionErrorManager().checkAndHandleError(e)) {
-          return;
-        }
-
-        if (!controller.isClosed) {
-          controller.addError(e);
-        }
+        if (await AuthRefreshManager().checkAndRefreshIfNeeded(e)) return;
+        if (ConnectionErrorManager().reportConnectionError(e)) return;
+        if (!controller.isClosed) controller.addError(e);
       }
-    }
-
-    void startPolling() {
-      timer?.cancel();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
-    }
-
-    void stopPolling() {
-      timer?.cancel();
-      timer = null;
     }
 
     controller = StreamController<dynamic>(
       onListen: () async {
         try {
-          currentDeployment = await getDeploymentDetails(kubernetesClient, namespace, deploymentName);
-          if (!controller.isClosed) {
-            controller.add(currentDeployment);
-          }
+          final deployment = await getDeploymentDetails(AuthRefreshManager().currentClient ?? kubernetesClient, namespace, deploymentName);
+          if (!controller.isClosed) controller.add(deployment);
         } catch (e) {
           debugPrint('Error fetching initial deployment details: $e');
-
-          if (!ConnectionErrorManager().checkAndHandleError(e)) {
-            if (!controller.isClosed) {
-              controller.addError(e);
-            }
+          if (!ConnectionErrorManager().reportConnectionError(e)) {
+            if (!controller.isClosed) controller.addError(e);
           }
         }
-
-        startPolling();
-
-        handle = ConnectionErrorManager().registerWatcher(
-          pause: () {
-            isPaused = true;
-            stopPolling();
-          },
-          resume: () {
-            isPaused = false;
-            startPolling();
-          },
-        );
+        timer = Timer.periodic(const Duration(seconds: 3), (_) => poll());
       },
       onCancel: () {
-        stopPolling();
-        ConnectionErrorManager().unregisterWatcher(handle);
-        handle = null;
+        timer?.cancel();
+        timer = null;
         controller.close();
       },
     );
